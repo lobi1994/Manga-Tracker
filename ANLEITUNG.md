@@ -43,7 +43,7 @@ Dabei wird auch dein **eigener, zufälliger Schlüssel** angelegt.
 ## 5. App aufs iPhone / iPad holen
 
 1. In der Tabelle: **Manga Tracker → App-Link anzeigen**.
-2. Den **Einrichtungs-Link** (beginnt mit `https://lobi1994.github.io/manga-tracker/#setup=`) kopieren und auf dein iPhone/iPad bringen – zum Beispiel per Notizen, AirDrop oder Mail an dich selbst.
+2. Den **Einrichtungs-Link** (beginnt mit `https://lobi1994.github.io/Manga-Tracker/#setup=`) kopieren und auf dein iPhone/iPad bringen – zum Beispiel per Notizen, AirDrop oder Mail an dich selbst.
 3. Den Link auf dem iPhone/iPad in **Safari** öffnen. Deine (noch leere) Liste erscheint.
 4. **Teilen → Zum Home-Bildschirm**. Jetzt hast du den Manga Tracker als App mit eigenem Symbol.
 
@@ -89,7 +89,7 @@ Benutzen: Übersichtsseite einer Serie in Safari öffnen (bei manchen Seiten vor
 
 ## 7. Updates
 
-Die App-Oberfläche aktualisiert sich von selbst. Wenn es eine neue Version des Skripts gibt (siehe Versionsnummer unten in der App und die [Änderungen auf GitHub](https://github.com/lobi1994/manga-tracker/commits/main)):
+Die App-Oberfläche aktualisiert sich von selbst. Wenn es eine neue Version des Skripts gibt (siehe Versionsnummer unten in der App und die [Änderungen auf GitHub](https://github.com/lobi1994/Manga-Tracker/commits/main)):
 
 1. In Apps Script den Inhalt von `Code.gs` wieder durch die neue [MangaTracker-Vorlage.gs](google/MangaTracker-Vorlage.gs) ersetzen und speichern.
 2. **Bereitstellen → Bereitstellungen verwalten → Stift (Bearbeiten) → Version: Neue Version → Bereitstellen.**

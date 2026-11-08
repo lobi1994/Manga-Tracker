@@ -2,7 +2,7 @@
 
 Eine kleine App, um Manga, Manhwa und Manhua zu verfolgen: Lesestand, Bewertungen, neue Kapitel, Erscheinungstage, Tier List und Empfehlungen.
 
-- **App:** https://lobi1994.github.io/manga-tracker/
+- **App:** https://lobi1994.github.io/Manga-Tracker/
 - **Eigenen Tracker einrichten:** [ANLEITUNG.md](ANLEITUNG.md)
 
 ## So funktioniert es

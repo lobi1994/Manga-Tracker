@@ -2,7 +2,7 @@
  * Manga Tracker – alles in einer Datei (Vorlage)
  * In einer neuen Google-Tabelle: Erweiterungen → Apps Script → den Inhalt von Code.gs
  * durch diese Datei ersetzen, speichern, Tabelle neu laden → Menü „Manga Tracker → Einrichten“.
- * Anleitung: https://github.com/lobi1994/manga-tracker/blob/main/ANLEITUNG.md
+ * Anleitung: https://github.com/lobi1994/Manga-Tracker/blob/main/ANLEITUNG.md
  */
 
 /* ==================================================================== */
@@ -1362,12 +1362,12 @@ function apiEmpfehlungAufnehmen(key, id) {
 /**
  * Manga Tracker – Schnittstelle für die App auf GitHub Pages + Einrichten-Menü
  *
- * Die App (https://lobi1994.github.io/manga-tracker/) schickt jede Anfrage als
+ * Die App (https://lobi1994.github.io/Manga-Tracker/) schickt jede Anfrage als
  * POST {fn, key, args} hierher. Erlaubt sind nur Funktionen, deren Name mit
  * „api“ beginnt; jede davon prüft den Schlüssel selbst.
  */
 
-const APP_PAGE = 'https://lobi1994.github.io/manga-tracker/';
+const APP_PAGE = 'https://lobi1994.github.io/Manga-Tracker/';
 
 /** Schlüssel dieser Tabelle: aus den Skripteigenschaften, sonst der alte feste Schlüssel. */
 function schluessel_() {

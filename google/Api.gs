@@ -1,12 +1,12 @@
 /**
  * Manga Tracker – Schnittstelle für die App auf GitHub Pages + Einrichten-Menü
  *
- * Die App (https://lobi1994.github.io/manga-tracker/) schickt jede Anfrage als
+ * Die App (https://lobi1994.github.io/Manga-Tracker/) schickt jede Anfrage als
  * POST {fn, key, args} hierher. Erlaubt sind nur Funktionen, deren Name mit
  * „api“ beginnt; jede davon prüft den Schlüssel selbst.
  */
 
-const APP_PAGE = 'https://lobi1994.github.io/manga-tracker/';
+const APP_PAGE = 'https://lobi1994.github.io/Manga-Tracker/';
 
 /** Schlüssel dieser Tabelle: aus den Skripteigenschaften, sonst der alte feste Schlüssel. */
 function schluessel_() {

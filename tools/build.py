@@ -37,7 +37,7 @@ html_src = (SRC / 'Index.html').read_text(encoding='utf-8')
 bundle = ['/**\n * Manga Tracker – alles in einer Datei (Vorlage)\n'
           ' * In einer neuen Google-Tabelle: Erweiterungen → Apps Script → den Inhalt von Code.gs\n'
           ' * durch diese Datei ersetzen, speichern, Tabelle neu laden → Menü „Manga Tracker → Einrichten“.\n'
-          ' * Anleitung: https://github.com/lobi1994/manga-tracker/blob/main/ANLEITUNG.md\n */\n']
+          ' * Anleitung: https://github.com/lobi1994/Manga-Tracker/blob/main/ANLEITUNG.md\n */\n']
 for name in GS:
     bundle.append('\n/* ==================================================================== */\n/* ' + name + ' */\n/* ==================================================================== */\n\n')
     bundle.append(files[name])
