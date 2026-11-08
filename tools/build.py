@@ -58,6 +58,13 @@ rep('<meta name="apple-mobile-web-app-title" content="Manga Tracker">',
     '<link rel="apple-touch-icon" href="icons/icon-180.png">\n'
     '<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">\n'
     '<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">')
+FONT = '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">'
+# Fonts must not hold up the first picture; connect to Google early
+rep(FONT, '<link rel="preconnect" href="https://script.google.com">\n'
+    '<link rel="preconnect" href="https://script.googleusercontent.com">\n'
+    '<link rel="preconnect" href="https://fonts.googleapis.com">\n'
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n'
+    + FONT.replace('">', '" media="print" onload="this.media=\'all\'">'))
 rep('<a href="<?= sheetUrl ?>" target="_blank"', '<a id="mtSheetLink" href="#" target="_blank"')
 rep('const KEY=<?!= JSON.stringify(key) ?>;', 'const KEY=window.MT_CFG?MT_CFG.k:"";')
 rep('const run=(fn,...a)=>new Promise((res,rej)=>google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn](KEY,...a));',

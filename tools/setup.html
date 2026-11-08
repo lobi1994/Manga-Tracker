@@ -75,6 +75,11 @@
   if (cfg) store(cfg);
   window.MT_CFG = cfg;
 
+  // Start the app from the device cache next time (sw.js)
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    try { navigator.serviceWorker.register('sw.js').catch(function () {}); } catch (e) {}
+  }
+
   window.mtCall = function (fn, args) {
     if (!window.MT_CFG) return new Promise(function () {});
     return fetch(MT_CFG.u, {
