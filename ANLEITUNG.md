@@ -42,7 +42,7 @@ Dabei wird auch dein **eigener, zufälliger Schlüssel** angelegt.
 
 ## 5. App aufs iPhone / iPad holen
 
-1. In der Tabelle: **Manga Tracker → App-Link anzeigen**.
+1. In der Tabelle: **Manga Tracker → App-Link anzeigen**. Beim ersten Mal fragt die Tabelle nach dem **Web-App-Link**: in Apps Script unter **Bereitstellen → Bereitstellungen verwalten** bei der Web-App die URL kopieren (endet auf `/exec`) und einfügen.
 2. Den **Einrichtungs-Link** (beginnt mit `https://lobi1994.github.io/Manga-Tracker/#setup=`) kopieren und auf dein iPhone/iPad bringen – zum Beispiel per Notizen, AirDrop oder Mail an dich selbst.
 3. Den Link auf dem iPhone/iPad in **Safari** öffnen. Deine (noch leere) Liste erscheint.
 4. **Teilen → Zum Home-Bildschirm**. Jetzt hast du den Manga Tracker als App mit eigenem Symbol.

@@ -1408,6 +1408,7 @@ function onOpen() {
   SpreadsheetApp.getUi().createMenu('Manga Tracker')
     .addItem('Einrichten', 'mtEinrichten')
     .addItem('App-Link anzeigen', 'mtAppLink')
+    .addItem('Web-App-Link ändern', 'mtLinkAendern')
     .addSeparator()
     .addItem('Neuen Schlüssel erzeugen', 'mtNeuerSchluessel')
     .addToUi();
@@ -1435,17 +1436,42 @@ function mtEinrichten() {
     ui.ButtonSet.OK);
 }
 
-function setupLink_() {
+/** Web-App-Link: gespeicherter Link, sonst der von Google gemeldete (nur wenn er auf /exec endet). */
+function appUrl_() {
+  const saved = PropertiesService.getScriptProperties().getProperty('appUrl') || '';
+  if (saved) return saved;
   const url = ScriptApp.getService().getUrl() || '';
+  return /\/exec$/.test(url) ? url : '';
+}
+
+/** Fragt nach dem Web-App-Link (Bereitstellen → Bereitstellungen verwalten → Web-App-URL) und speichert ihn. */
+function mtAppLinkEintragen() {
+  const ui = SpreadsheetApp.getUi();
+  const r = ui.prompt('Web-App-Link eintragen',
+    'In Apps Script: Bereitstellen → Bereitstellungen verwalten → bei der Web-App die URL kopieren (endet auf /exec) und hier einfügen:',
+    ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return false;
+  const url = r.getResponseText().trim().replace(/\?.*$/, '');
+  if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(url)) {
+    ui.alert('Manga Tracker', 'Das ist kein Web-App-Link. Er beginnt mit https://script.google.com/ und endet auf /exec.', ui.ButtonSet.OK);
+    return false;
+  }
+  PropertiesService.getScriptProperties().setProperty('appUrl', url);
+  return true;
+}
+
+function setupLink_() {
+  const url = appUrl_();
   const k = schluessel_();
   if (!url || !k) return null;
-  const data = Utilities.base64EncodeWebSafe(JSON.stringify({ u: url.replace(/\/dev$/, '/exec'), k: k }), Utilities.Charset.UTF_8).replace(/=+$/, '');
+  const data = Utilities.base64EncodeWebSafe(JSON.stringify({ u: url, k: k }), Utilities.Charset.UTF_8).replace(/=+$/, '');
   return { page: APP_PAGE + '#setup=' + data, url: url, key: k };
 }
 
 /** Zeigt den persönlichen Einrichtungs-Link (App-Link + Schlüssel). */
 function mtAppLink() {
   const ui = SpreadsheetApp.getUi();
+  if (!appUrl_() && schluessel_() && !mtAppLinkEintragen()) return;
   const s = setupLink_();
   if (!s) {
     ui.alert('Manga Tracker', 'Noch keine Web-App bereitgestellt oder kein Schlüssel vorhanden.\nBitte zuerst „Einrichten“ ausführen und die Web-App bereitstellen.', ui.ButtonSet.OK);
@@ -1473,6 +1499,9 @@ function mtNeuerSchluessel() {
   PropertiesService.getScriptProperties().setProperty('appKey', zufallsSchluessel_());
   mtAppLink();
 }
+
+/** Gespeicherten Web-App-Link ersetzen (z. B. nach einer neuen Bereitstellung statt einer neuen Version). */
+function mtLinkAendern() { if (mtAppLinkEintragen()) mtAppLink(); }
 
 /* ==================================================================== */
 /* KapitelAktualisieren.gs */
