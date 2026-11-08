@@ -69,6 +69,11 @@ rep('<a href="<?= sheetUrl ?>" target="_blank"', '<a id="mtSheetLink" href="#" t
 rep('const KEY=<?!= JSON.stringify(key) ?>;', 'const KEY=window.MT_CFG?MT_CFG.k:"";')
 rep('const run=(fn,...a)=>new Promise((res,rej)=>google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn](KEY,...a));',
     'const run=(fn,...a)=>window.mtCall(fn,a);')
+# Show the page only when all add-ons (new layout, style, header) have run - no flash of the old design
+rep('<title>Manga Tracker</title>\n', '<title>Manga Tracker</title>\n'
+    '<style>html:not(.mt-ready) body{visibility:hidden}</style>\n'
+    '<script>setTimeout(function(){document.documentElement.classList.add("mt-ready")},2500)</script>\n')
+rep('</body>', '<script>document.documentElement.classList.add("mt-ready")</script>\n</body>')
 assert '<?' not in h, 'template tag left'
 
 setup = (ROOT / 'tools' / 'setup.html').read_text(encoding='utf-8')
