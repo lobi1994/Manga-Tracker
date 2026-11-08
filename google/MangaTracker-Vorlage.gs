@@ -25,11 +25,11 @@ const SHEET = 'Mangas';
 const HEAD = ['Kategorien', 'Titel', 'Letztes Kapitel', 'Status', 'Zuletzt gelesen', 'Link', 'Bewertung', 'Notiz', 'ID', 'Übersicht', 'Bild', 'Beschreibung', 'Beschreibung DE', 'Bildquelle',
   'Prüfung', 'Geprüft am', 'Erschienen am', 'Erschienenes Kapitel', 'Erscheinungstag', 'Benachrichtigen', 'Zurück aus Hiatus', 'Auto-Hiatus',
   'Neuestes Kapitel', 'Neuestes seit', 'Gesperrt bis', 'Quelle',
-  'AniList-ID', 'AniList-Titel', 'Alternativtitel', 'Offiziell bei', 'AniList-Zuordnung', 'AniList-Link', 'Webtoon-Feed'];
+  'AniList-ID', 'AniList-Titel', 'Alternativtitel', 'Offiziell bei', 'AniList-Zuordnung', 'AniList-Link', 'Webtoon-Feed', 'Gelesen um'];
 const C = { genres: 1, title: 2, chapter: 3, status: 4, lastRead: 5, url: 6, rating: 7, note: 8, id: 9, overview: 10, image: 11, desc: 12, descDe: 13, imageSrc: 14,
   check: 15, checkedAt: 16, relDate: 17, relCh: 18, relDay: 19, notify: 20, back: 21, autoHiatus: 22, latest: 23, latestSince: 24, lockedCh: 25, source: 26,
-  dbId: 27, dbTitle: 28, alt: 29, official: 30, dbStatus: 31, dbUrl: 32, wtFeed: 33 };
-const SCHEMA = 8;
+  dbId: 27, dbTitle: 28, alt: 29, official: 30, dbStatus: 31, dbUrl: 32, wtFeed: 33, readAt: 34 };
+const SCHEMA = 9;
 const AL = 'https://graphql.anilist.co';
 const HIATUS_DAYS = 21;
 const TZ = 'Europe/Berlin';
@@ -292,7 +292,8 @@ function alle_() {
     official: r[C.official - 1] || null,
     dbStatus: r[C.dbStatus - 1] || null,
     dbUrl: r[C.dbUrl - 1] || null,
-    wtFeed: r[C.wtFeed - 1] || null
+    wtFeed: r[C.wtFeed - 1] || null,
+    readAt: Number(r[C.readAt - 1]) || 0
   })).map(it => { it.next = naechstesKapitel_(it); return it; });
 }
 
@@ -342,6 +343,12 @@ function schreiben_(id, patch) {
     if (newCh > Number(row[C.chapter - 1] || 0) && row[C.status - 1] === 'Hiatus' && row[C.autoHiatus - 1] && !('status' in patch)) { patch.status = 'Lese ich gerade'; patch.autoHiatus = ''; }
   }
   if ('status' in patch && patch.status !== 'Hiatus') patch.back = '';
+  // Uhrzeit des Lesens (nur für die Sortierung): wenn sich Kapitel oder Lesedatum ändern
+  if (patch.lastRead || ('chapter' in patch)) {
+    const old = sh.getRange(r, C.chapter, 1, 3).getValues()[0];
+    const oldDate = old[2] instanceof Date ? Utilities.formatDate(old[2], TZ, 'yyyy-MM-dd') : String(old[2] || '');
+    if (('chapter' in patch && String(patch.chapter ?? '') !== String(old[0])) || (patch.lastRead && patch.lastRead !== oldDate)) patch.readAt = Date.now();
+  }
   Object.keys(patch).forEach(k => { if (C[k] && k !== 'id') sh.getRange(r, C[k]).setValue(zelle_(k, patch[k])); });
   return alle_().find(x => x.id === id);
 }
@@ -349,6 +356,7 @@ function schreiben_(id, patch) {
 function anlegen_(o) {
   const sh = blatt_(); const items = alle_();
   if (!o.overview && o.url) o.overview = uebersicht_(o.url);
+  if (o.lastRead) o.readAt = Date.now();
   let id = slug_(o.title); if (items.some(x => x.id === id)) id += '-' + Date.now().toString(36);
   const row = HEAD.map((h, i) => {
     const k = Object.keys(C).find(key => C[key] === i + 1);

@@ -666,7 +666,7 @@ function renderShelf(){
   const sort=prefs.sort;
   const sOrd=s=>{const k=STATUS.indexOf(s);return k<0?2.5:k};
   const byT=(a,b)=>a.title.localeCompare(b.title);
-  if(sort==="recent")list.sort((a,b)=>(b.lastRead||"").localeCompare(a.lastRead||"")||byT(a,b));
+  if(sort==="recent")list.sort((a,b)=>(b.lastRead||"").localeCompare(a.lastRead||"")||(b.readAt||0)-(a.readAt||0)||byT(a,b));
   else if(sort==="title")list.sort(byT);
   else if(sort==="rating")list.sort((a,b)=>(parseInt(b.rating)||0)-(parseInt(a.rating)||0)||byT(a,b));
   else if(sort==="unread")list.sort((a,b)=>unread(b)-unread(a)||byT(a,b));
@@ -1275,7 +1275,7 @@ applyPage(); applyLang(); reload(false);
 <script>
 /* App version shown at the bottom of every page; raise it with every update and note it in the change log */
 (function(){
-  var APP_VERSION = 'v2.3', APP_DATE = '08.11.2026';
+  var APP_VERSION = 'v2.4', APP_DATE = '08.11.2026';
   var f = document.createElement('div');
   f.id = 'appVersion';
   f.textContent = 'Manga Tracker ' + APP_VERSION + ' \u00b7 ' + APP_DATE;
