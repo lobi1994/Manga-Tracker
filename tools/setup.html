@@ -1,0 +1,143 @@
+<div id="mtSetup" hidden>
+  <div class="mts-card">
+    <img src="icons/icon-180.png" alt="" class="mts-ic">
+    <h1 class="mts-h" data-mts="title"></h1>
+    <p class="mts-p" data-mts="intro"></p>
+    <label class="mts-l"><span data-mts="linkL"></span>
+      <textarea id="mtsLink" rows="3" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea></label>
+    <details class="mts-more"><summary data-mts="manual"></summary>
+      <label class="mts-l"><span data-mts="urlL"></span><input id="mtsUrl" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://script.google.com/macros/s/.../exec"></label>
+      <label class="mts-l"><span data-mts="keyL"></span><input id="mtsKey" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+    </details>
+    <p class="mts-err" id="mtsErr" hidden></p>
+    <div class="mts-row"><button type="button" id="mtsCancel" data-mts="cancel" hidden></button><button type="button" id="mtsSave" data-mts="save"></button></div>
+    <p class="mts-p mts-small"><span data-mts="help"></span> <a href="https://github.com/lobi1994/manga-tracker/blob/main/ANLEITUNG.md" target="_blank" rel="noopener" data-mts="guide"></a></p>
+  </div>
+</div>
+<style>
+#mtSetup{position:fixed;inset:0;z-index:9999;background:var(--paper,#f6f6f2);overflow:auto;display:flex;align-items:flex-start;justify-content:center;
+  padding:max(24px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 40px max(16px,env(safe-area-inset-left,0px))}
+#mtSetup[hidden]{display:none}
+.mts-card{width:100%;max-width:460px;background:var(--card,#fff);color:var(--ink,#1c1d22);border:1px solid var(--line,#dedfd8);border-radius:16px;padding:22px;display:flex;flex-direction:column;gap:12px;margin-top:4vh}
+.mts-ic{width:64px;height:64px;border-radius:14px}
+.mts-h{margin:0;font-size:22px}
+.mts-p{margin:0;color:var(--muted,#686a73)}
+.mts-small{font-size:13px}
+.mts-l{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted,#686a73)}
+.mts-l textarea,.mts-l input{font:inherit;font-size:15px;color:var(--ink,#1c1d22);background:var(--paper,#f6f6f2);border:1px solid var(--line,#dedfd8);border-radius:10px;padding:10px;width:100%;box-sizing:border-box}
+.mts-more summary{cursor:pointer;font-size:13px;color:var(--muted,#686a73)}
+.mts-more[open]{display:flex;flex-direction:column;gap:10px}
+.mts-err{margin:0;color:var(--bad,#a33b3b);font-size:14px}
+.mts-row{display:flex;gap:8px;justify-content:flex-end}
+.mts-row button{font:inherit;border-radius:10px;padding:10px 16px;border:1px solid var(--line,#dedfd8);background:var(--card,#fff);color:var(--ink,#1c1d22)}
+#mtsSave{background:var(--accent,#2f6f62);border-color:var(--accent,#2f6f62);color:var(--accent-ink,#fff);font-weight:700}
+#mtConn{display:block;margin:0 auto 24px;font-size:12px;color:var(--muted,#888);background:none;border:0;text-decoration:underline;cursor:pointer}
+</style>
+<script>
+/* GitHub version: connection to the own Google web app (link + key are stored only on this device) */
+(function () {
+  var CK = 'mt-cfg';
+  var de = /^de/i.test(navigator.language || '');
+  var TX = {
+    title: ['Connect Manga Tracker', 'Manga Tracker verbinden'],
+    intro: ['Paste your personal setup link. You find it in your Google Sheet under the menu "Manga Tracker → Show app link".',
+            'Füge deinen persönlichen Einrichtungs-Link ein. Du findest ihn in deiner Google-Tabelle im Menü „Manga Tracker → App-Link anzeigen“.'],
+    linkL: ['Setup link', 'Einrichtungs-Link'], manual: ['Enter app link and key separately', 'App-Link und Schlüssel einzeln eingeben'],
+    urlL: ['App link (ends with /exec)', 'App-Link (endet auf /exec)'], keyL: ['Key', 'Schlüssel'],
+    save: ['Connect', 'Verbinden'], cancel: ['Cancel', 'Abbrechen'],
+    help: ['Not set up yet?', 'Noch nicht eingerichtet?'], guide: ['Step-by-step guide', 'Schritt-für-Schritt-Anleitung'],
+    bad: ['This link is not valid. Please copy the whole link.', 'Dieser Link ist ungültig. Bitte den ganzen Link kopieren.'],
+    badUrl: ['The app link must start with https://script.google.com/', 'Der App-Link muss mit https://script.google.com/ beginnen.'],
+    conn: ['Change connection', 'Verbindung ändern'],
+    denied: ['The key does not match (any more). Please open your current setup link.', 'Der Schlüssel passt nicht (mehr). Bitte deinen aktuellen Einrichtungs-Link öffnen.'],
+    net: ['No connection to your Google web app', 'Keine Verbindung zu deiner Google-Web-App']
+  };
+  function tx(k) { return TX[k][de ? 1 : 0]; }
+
+  function decode(s) {
+    s = String(s || '').trim();
+    var m = s.match(/#setup=([A-Za-z0-9_\-]+)/) || s.match(/^([A-Za-z0-9_\-]{20,})$/);
+    if (!m) return null;
+    try {
+      var b = m[1].replace(/-/g, '+').replace(/_/g, '/');
+      while (b.length % 4) b += '=';
+      var o = JSON.parse(decodeURIComponent(escape(atob(b))));
+      return valid(o) ? { u: o.u, k: o.k } : null;
+    } catch (e) { return null; }
+  }
+  function valid(o) { return o && /^https:\/\/script\.google\.com\/[^\s]+\/exec$/.test(o.u || '') && /^[A-Za-z0-9_\-]{8,}$/.test(o.k || ''); }
+  function load() { try { var o = JSON.parse(localStorage.getItem(CK) || 'null'); return valid(o) ? o : null; } catch (e) { return null; } }
+  function store(o) { try { localStorage.setItem(CK, JSON.stringify(o)); } catch (e) {} }
+
+  // A setup link in the address stays there on purpose: "Add to Home Screen" keeps it,
+  // so the home-screen app is connected even though it has its own storage.
+  var cfg = decode(location.hash) || load();
+  if (cfg) store(cfg);
+  window.MT_CFG = cfg;
+
+  window.mtCall = function (fn, args) {
+    if (!window.MT_CFG) return new Promise(function () {});
+    return fetch(MT_CFG.u, {
+      method: 'POST', redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ fn: fn, key: MT_CFG.k, args: args || [] })
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    }, function () { throw new Error(tx('net')); }).then(function (t) {
+      var j;
+      try { j = JSON.parse(t); } catch (e) { throw new Error(tx('net')); }
+      if (j && j.error) {
+        // Wrong or replaced key: ask for the setup link again
+        if (j.error === 'Kein Zugriff' && fn === 'apiListe') {
+          showSetup(true);
+          var er = document.getElementById('mtsErr'); er.textContent = tx('denied'); er.hidden = false;
+        }
+        throw new Error(j.error);
+      }
+      return j ? j.result : null;
+    });
+  };
+
+  function showSetup(canCancel) {
+    var box = document.getElementById('mtSetup');
+    Array.prototype.forEach.call(box.querySelectorAll('[data-mts]'), function (el) { el.textContent = tx(el.getAttribute('data-mts')); });
+    document.getElementById('mtsCancel').hidden = !canCancel;
+    if (window.MT_CFG) { document.getElementById('mtsUrl').value = MT_CFG.u; document.getElementById('mtsKey').value = MT_CFG.k; }
+    box.hidden = false;
+  }
+  window.mtShowSetup = showSetup;
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var err = document.getElementById('mtsErr');
+    document.getElementById('mtsSave').onclick = function () {
+      var link = document.getElementById('mtsLink').value, o = null;
+      if (link.trim()) { o = decode(link); if (!o) { err.textContent = tx('bad'); err.hidden = false; return; } }
+      else {
+        o = { u: document.getElementById('mtsUrl').value.trim(), k: document.getElementById('mtsKey').value.trim() };
+        if (!valid(o)) { err.textContent = /^https:\/\/script\.google\.com\//.test(o.u) ? tx('bad') : tx('badUrl'); err.hidden = false; return; }
+      }
+      store(o);
+      // Clear the old cache of another list, then start fresh with the setup link in the address
+      try { localStorage.removeItem('mt-cache-v1'); } catch (e) {}
+      var data = btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      location.replace(location.pathname + '#setup=' + data);
+      location.reload();
+    };
+    document.getElementById('mtsCancel').onclick = function () { document.getElementById('mtSetup').hidden = true; };
+    if (!window.MT_CFG) { showSetup(false); return; }
+
+    // Link to the sheet and a small "change connection" button at the bottom
+    window.mtCall('apiInfo', []).then(function (i) {
+      var a = document.getElementById('mtSheetLink');
+      if (a && i && i.sheetUrl) a.href = i.sheetUrl;
+    }).catch(function () {});
+    setTimeout(function () {
+      var b = document.createElement('button');
+      b.type = 'button'; b.id = 'mtConn'; b.textContent = tx('conn');
+      b.onclick = function () { showSetup(true); };
+      document.body.appendChild(b);
+    }, 0);
+  });
+})();
+</script>
