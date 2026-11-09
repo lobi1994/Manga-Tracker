@@ -19,7 +19,7 @@
  */
 
 // Alter fester Schlüssel (nur für ältere Installationen). Neue Installationen nutzen die Skripteigenschaft „appKey“.
-const KEY = '';  // eigener Schlüssel: Menü „Manga Tracker → Einrichten“ legt ihn an  // eigener Schlüssel: Menü „Manga Tracker → Einrichten“ legt ihn an  // eigener Schlüssel: Menü „Manga Tracker → Einrichten“ legt ihn an
+const KEY = '';  // eigener Schlüssel: Menü „Manga Tracker → Einrichten“ legt ihn an
 
 const SHEET = 'Mangas';
 const HEAD = ['Kategorien', 'Titel', 'Letztes Kapitel', 'Status', 'Zuletzt gelesen', 'Link', 'Bewertung', 'Notiz', 'ID', 'Übersicht', 'Bild', 'Beschreibung', 'Beschreibung DE', 'Bildquelle',

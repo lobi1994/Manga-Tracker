@@ -13,7 +13,7 @@ import pathlib, re, sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SRC = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else ROOT / 'google')
 GS = ['Code.gs', 'Api.gs', 'KapitelAktualisieren.gs', 'LinkEintragen.gs', 'SeitenStatus.gs', 'Zusatz.gs']
-KEY_RE = re.compile(r"const KEY = '([^']*)';")
+KEY_RE = re.compile(r"const KEY = '([^']*)';[^\n]*")
 
 secret = ''
 files = {}
