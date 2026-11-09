@@ -467,6 +467,9 @@ function savePrefs(){
 let items=[], serverCats=Object.keys(DEF_CATS), editingId=null, editCats=new Set(), detailId=null, matchState=null;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+// Links aus Tabelle/AniList/fremden Seiten: nur http(s) zulassen, sonst kein Link (verhindert javascript:-Links)
+const safeUrl=u=>/^https?:\/\//i.test(String(u??"").trim())?String(u).trim():"#";
+const escUrl=u=>esc(safeUrl(u));
 const run=(fn,...a)=>new Promise((res,rej)=>google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn](KEY,...a));
 const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
 const fmtDate=s=>{if(!s)return"";const[y,m,d]=s.split("-");return d+"."+m+"."+y};
@@ -578,12 +581,12 @@ function nextState(i){
 }
 const unread=i=>(i.source!=="webtoon"&&i.latest!=null&&i.chapter!=null)?Math.max(0,i.latest-Math.floor(i.chapter)):0;
 function readLinks(i){
-  const ov=i.overview?`<a href="${esc(i.overview)}" target="_blank" rel="noopener">${t("overview")}</a>`:"";
-  if(!i.next)return ov||(i.url?`<a href="${esc(i.url)}" target="_blank" rel="noopener">${t("read")}</a>`:"");
+  const ov=i.overview?`<a href="${escUrl(i.overview)}" target="_blank" rel="noopener">${t("overview")}</a>`:"";
+  if(!i.next)return ov||(i.url?`<a href="${escUrl(i.url)}" target="_blank" rel="noopener">${t("read")}</a>`:"");
   const n=Math.floor(i.chapter)+1, a=nextState(i);
   if(a==="no")return `<span>${t("notYet",n)}</span>${ov}`;
-  if(a==="locked")return `<a href="${esc(i.next)}" target="_blank" rel="noopener">${t("locked",n)} ↗</a>${ov}`;
-  return `<a href="${esc(i.next)}" target="_blank" rel="noopener"><b>${t("next",n)}${a==="free"?" ✓":""}</b> ↗</a>${ov}`;
+  if(a==="locked")return `<a href="${escUrl(i.next)}" target="_blank" rel="noopener">${t("locked",n)} ↗</a>${ov}`;
+  return `<a href="${escUrl(i.next)}" target="_blank" rel="noopener"><b>${t("next",n)}${a==="free"?" ✓":""}</b> ↗</a>${ov}`;
 }
 function relInfo(i){
   const out=[]; const u=unread(i);
@@ -721,13 +724,13 @@ let suppressClick=false;
 document.addEventListener("click",e=>{const b=e.target.closest("[data-detail]");if(!b)return;if(suppressClick){e.preventDefault();return}openDetail(b.dataset.detail)});
 function muBlock(i){
   const out=[];
-  if(i.dbStatus==="unsicher")out.push(`<div class="confirm" style="margin-top:6px"><span>${t("muQ",esc(i.dbTitle||""))}</span> <button type="button" data-mu="1">${t("muYes")}</button><button type="button" data-mu="0">${t("muNo")}</button>${i.dbUrl?` <a href="${esc(i.dbUrl)}" target="_blank" rel="noopener">${t("muLink")}</a>`:""}</div>`);
+  if(i.dbStatus==="unsicher")out.push(`<div class="confirm" style="margin-top:6px"><span>${t("muQ",esc(i.dbTitle||""))}</span> <button type="button" data-mu="1">${t("muYes")}</button><button type="button" data-mu="0">${t("muNo")}</button>${i.dbUrl?` <a href="${escUrl(i.dbUrl)}" target="_blank" rel="noopener">${t("muLink")}</a>`:""}</div>`);
   const alt=(i.alt||[]).filter(a=>norm(a)!==norm(i.title));
   if(alt.length)out.push(`<div class="note">${t("altLbl")}: ${esc(alt.slice(0,6).join(" · "))}${alt.length>6?" "+t("more",alt.length-6):""}</div>`);
   const offs=String(i.official||"").split(" ; ").map(x=>x.split("|")).filter(x=>x[0]&&x[1]);
-  if(offs.length)out.push(`<div class="note">${t("officialLbl")}: ${offs.map(([s2,u])=>`<a href="${esc(u)}" target="_blank" rel="noopener">${esc(s2)} ↗</a>`).join(" · ")}</div>`);
+  if(offs.length)out.push(`<div class="note">${t("officialLbl")}: ${offs.map(([s2,u])=>`<a href="${escUrl(u)}" target="_blank" rel="noopener">${esc(s2)} ↗</a>`).join(" · ")}</div>`);
   const src=i.source||"none"; const line=t("srcLbl",src);
-  out.push(`<div class="note">${line}${i.dbUrl&&i.dbStatus!=="unsicher"?` · <a href="${esc(i.dbUrl)}" target="_blank" rel="noopener">${t("muLink")}</a>`:""}</div>`);
+  out.push(`<div class="note">${line}${i.dbUrl&&i.dbStatus!=="unsicher"?` · <a href="${escUrl(i.dbUrl)}" target="_blank" rel="noopener">${t("muLink")}</a>`:""}</div>`);
   return out.join("");
 }
 $("detailBody").addEventListener("click",async e=>{
@@ -850,7 +853,7 @@ $("form").addEventListener("submit",async e=>{
 /* ---------- backups ---------- */
 async function loadBackups(){
   try{const list=await run("apiSicherungen");
-    $("backups").innerHTML=list.length?list.map(b=>`<div class="bk"><span>${esc(b.name)}</span><a href="${esc(b.url)}" target="_blank" rel="noopener">${t("open")}</a></div>`).join(""):`<div class="note">${t("noBackups")}</div>`;
+    $("backups").innerHTML=list.length?list.map(b=>`<div class="bk"><span>${esc(b.name)}</span><a href="${escUrl(b.url)}" target="_blank" rel="noopener">${t("open")}</a></div>`).join(""):`<div class="note">${t("noBackups")}</div>`;
   }catch(e){$("backups").innerHTML=`<div class="note">${t("backupsErr")}</div>`}
 }
 $("backups").innerHTML=`<div class="note">${t("backupsHint")}</div>`;
@@ -931,7 +934,7 @@ $("pngDrive").onclick=async()=>{
   try{
     const b64=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result).split(",")[1]);fr.onerror=rej;fr.readAsDataURL(pngBlob)});
     const r=await run("apiPngSpeichern",b64);
-    $("pngDriveMsg").innerHTML=`${esc(t("pngSaved"))} <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.name)} ↗</a>`;
+    $("pngDriveMsg").innerHTML=`${esc(t("pngSaved"))} <a href="${escUrl(r.url)}" target="_blank" rel="noopener">${esc(r.name)} ↗</a>`;
   }catch(e){err(e)}finally{$("pngDrive").disabled=false}
 };
 
@@ -952,7 +955,7 @@ function recCard(r){
     <div class="meta">${r.avg?`<span>★ ${r.avg}%</span>`:""}${r.chapters?`<span>${t("recCh",r.chapters,r.approx)}</span>`:""}<span>${r.country==="KR"?"Manhwa":r.country==="CN"||r.country==="TW"?"Manhua":esc(r.country)}</span>${r.genres.length?`<span>${esc(r.genres.slice(0,3).join(", "))}</span>`:""}</div>
     ${why?`<div class="note">${esc(why)}</div>`:""}
     ${d?`<details><summary>${t("recDesc")}</summary><p class="desc" style="margin:6px 0 0">${esc(d)}</p></details>`:""}
-    <div class="meta">${r.url?`<a href="${esc(r.url)}" target="_blank" rel="noopener">AniList ↗</a>`:""}${offs.map(([s2,u])=>`<a href="${esc(u)}" target="_blank" rel="noopener">${esc(s2)} ↗</a>`).join("")}</div>
+    <div class="meta">${r.url?`<a href="${escUrl(r.url)}" target="_blank" rel="noopener">AniList ↗</a>`:""}${offs.map(([s2,u])=>`<a href="${escUrl(u)}" target="_blank" rel="noopener">${esc(s2)} ↗</a>`).join("")}</div>
     <div class="acts"><button type="button" class="primary" data-ra="add">${t("recAdd")}</button><button type="button" data-ra="no">${t("recNo")}</button></div>
   </div></div>`;
 }
@@ -1009,7 +1012,7 @@ $("fileDrive").onclick=async()=>{
   try{
     const b64=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result).split(",")[1]);fr.onerror=rej;fr.readAsDataURL(fileBlob)});
     const r=await run("apiDateiSpeichern",b64,fileName,fileBlob.type);
-    $("fileMsg").innerHTML=`${esc(t("pngSaved"))} <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.name)} ↗</a>`;
+    $("fileMsg").innerHTML=`${esc(t("pngSaved"))} <a href="${escUrl(r.url)}" target="_blank" rel="noopener">${esc(r.name)} ↗</a>`;
   }catch(e){err(e)}finally{$("fileDrive").disabled=false}
 };
 
@@ -1165,7 +1168,7 @@ applyPage(); applyLang(); reload(false);
   relInfo = function (i) {
     var h = baseRel(i);
     if (!due(i)) return h;
-    var href = esc(i.overview || i.url || '');
+    var href = (i.overview || i.url) ? escUrl(i.overview || i.url) : '';
     var pill = href
       ? '<a class="visitpill" target="_blank" rel="noopener" href="' + href + '" title="' + esc(t('visitTip')) + '">' + esc(t('visitDue')) + ' \u2197</a>'
       : '<span class="visitpill" title="' + esc(t('visitTip')) + '">' + esc(t('visitDue')) + '</span>';
@@ -1222,7 +1225,7 @@ applyPage(); applyLang(); reload(false);
   var baseLinks = readLinks;
   readLinks = function (i) {
     if (!waitInfo(i)) return baseLinks(i);
-    return i.overview ? '<a href="' + esc(i.overview) + '" target="_blank" rel="noopener">' + t('overview') + '</a>' : '';
+    return i.overview ? '<a href="' + escUrl(i.overview) + '" target="_blank" rel="noopener">' + t('overview') + '</a>' : '';
   };
   /* second line of the card: waiting note, reminders, unread, release day */
   var baseRel = relInfo;
@@ -1275,7 +1278,7 @@ applyPage(); applyLang(); reload(false);
 <script>
 /* App version shown at the bottom of every page; raise it with every update and note it in the change log */
 (function(){
-  var APP_VERSION = 'v2.4', APP_DATE = '08.11.2026';
+  var APP_VERSION = 'v2.4.1', APP_DATE = '09.11.2026';
   var f = document.createElement('div');
   f.id = 'appVersion';
   f.textContent = 'Manga Tracker ' + APP_VERSION + ' \u00b7 ' + APP_DATE;
@@ -1381,7 +1384,7 @@ applyPage(); applyLang(); reload(false);
     if (isGone(i)) {
       var g = gone[i.id];
       box.innerHTML = '<div class="gonebox"><div>' + esc(t('goneNote', h, fmtDate(g.date))) + '</div>'
-        + '<div class="row"><a class="btnlike" target="_blank" rel="noopener" href="' + esc(searchUrl(i)) + '">' + esc(t('goneSearch')) + ' \u2197</a>'
+        + '<div class="row"><a class="btnlike" target="_blank" rel="noopener" href="' + escUrl(searchUrl(i)) + '">' + esc(t('goneSearch')) + ' \u2197</a>'
         + '<button type="button" id="goneEdit">' + esc(t('goneEdit')) + '</button>'
         + '<button type="button" id="goneUndo">' + esc(t('goneUndo')) + '</button></div>'
         + '<div class="note">' + esc(t('goneHint')) + '</div></div>';
@@ -1422,7 +1425,7 @@ applyPage(); applyLang(); reload(false);
   /* No chapter link saved (for example after switching to a new site): show only the overview until Manga gelesen sets one */
   var baseLinks7 = readLinks;
   readLinks = function (i) {
-    if (!i.url && i.overview) return '<a href="' + esc(i.overview) + '" target="_blank" rel="noopener">' + t('overview') + '</a>';
+    if (!i.url && i.overview) return '<a href="' + escUrl(i.overview) + '" target="_blank" rel="noopener">' + t('overview') + '</a>';
     return baseLinks7(i);
   };
   var baseRel = relInfo;
@@ -1733,8 +1736,8 @@ applyPage(); applyLang(); reload(false);
     if (w) return '<span class="go off">' + esc(tx('comes', w.n, shortDay(w.date))) + '</span>';
     var a = nextState(i);
     if (a === 'no') return '<span class="go off">' + esc(t('notYet', n)) + '</span>';
-    if (a === 'locked') return '<a class="go lock" href="' + esc(i.next) + '" target="_blank" rel="noopener">\ud83d\udd12 ' + esc(tx('nextBtn', n)) + '</a>';
-    return '<a class="go" href="' + esc(i.next) + '" target="_blank" rel="noopener">' + esc(tx('nextBtn', n)) + (a === 'free' ? ' \u2713' : '') + ' \u2192</a>';
+    if (a === 'locked') return '<a class="go lock" href="' + escUrl(i.next) + '" target="_blank" rel="noopener">\ud83d\udd12 ' + esc(tx('nextBtn', n)) + '</a>';
+    return '<a class="go" href="' + escUrl(i.next) + '" target="_blank" rel="noopener">' + esc(tx('nextBtn', n)) + (a === 'free' ? ' \u2713' : '') + ' \u2192</a>';
   }
   row = function (i) {
     var st = i.status || '', g = i.genres || [], done = st === 'Beendet', u = unread(i);
@@ -1743,7 +1746,7 @@ applyPage(); applyLang(); reload(false);
     if (!done && i.relDate === today()) flags.push('<span class="fl new">' + esc(t('newToday')) + '</span>');
     if (window.siteGone && window.siteGone(i)) flags.push('<span class="gonepill">' + esc(t('gonePill')) + '</span>');
     if (window.linksMixed && window.linksMixed(i)) flags.push('<span class="mixpill" title="' + esc(t('mixTip')) + '">' + esc(t('mixPill')) + '</span>');
-    if (window.visitDue && window.visitDue(i)) flags.push('<a class="visitpill" href="' + esc(i.overview || i.url || '') + '" target="_blank" rel="noopener" title="' + esc(t('visitTip')) + '">\u21bb ' + esc(t('visitDue')) + '</a>');
+    if (window.visitDue && window.visitDue(i)) flags.push('<a class="visitpill" href="' + escUrl(i.overview || i.url || '') + '" target="_blank" rel="noopener" title="' + esc(t('visitTip')) + '">\u21bb ' + esc(t('visitDue')) + '</a>');
     var line = [];
     var w = !done && window.waitInfo ? window.waitInfo(i) : null;
     if (w) line.push('\u23f3 ' + esc(tx('expected', w.n, shortDay(w.date) + ', ' + w.date.toLocaleDateString(prefs.lang === 'de' ? 'de-DE' : 'en-US', prefs.lang === 'de' ? { day: '2-digit', month: '2-digit' } : { month: 'short', day: 'numeric' }))));
@@ -1753,7 +1756,7 @@ applyPage(); applyLang(); reload(false);
     if (i.notify) line.push('\ud83d\udd14');
     if (i.note) line.push(esc(i.note));
     var cats = g.map(function (c) { return '<span class="cg" style="--c:' + catColor(c) + '"><i></i>' + esc(cs(c)) + '</span>'; }).join('');
-    var ov = i.overview ? '<a class="ovb" href="' + esc(i.overview) + '" target="_blank" rel="noopener" title="' + esc(t('overview')) + '" aria-label="' + esc(t('overview')) + '">\u2197</a>' : '';
+    var ov = i.overview ? '<a class="ovb" href="' + escUrl(i.overview) + '" target="_blank" rel="noopener" title="' + esc(t('overview')) + '" aria-label="' + esc(t('overview')) + '">\u2197</a>' : '';
     return '<div class="item mt2" data-id="' + esc(i.id) + '">'
       + '<div class="cvw">' + cover(i, 'cover') + (u > 0 ? '<span class="nb">+' + u + '</span>' : '') + '</div>'
       + '<div class="main">'

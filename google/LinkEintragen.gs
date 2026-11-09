@@ -11,7 +11,7 @@ function linkEintragenNeu_(url) {
           const h = hostOhneWww_(info.url), ho = hostOhneWww_(m.overview);
           if (h && ho && h !== ho) {
             const sh = blatt_(); const r = zeile_(sh, m.id);
-            if (r) sh.getRange(r, C.overview).setValue(uebersicht_(info.url) || info.url);
+            if (r) sh.getRange(r, C.overview).setValue(txt_(uebersicht_(info.url) || info.url));
           }
         }
       } finally { lock.releaseLock(); }

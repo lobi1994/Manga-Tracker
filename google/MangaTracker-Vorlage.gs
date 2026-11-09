@@ -19,7 +19,7 @@
  */
 
 // Alter fester Schlüssel (nur für ältere Installationen). Neue Installationen nutzen die Skripteigenschaft „appKey“.
-const KEY = '';  // eigener Schlüssel: Menü „Manga Tracker → Einrichten“ legt ihn an
+const KEY = '';  // eigener Schlüssel: Menü „Manga Tracker → Einrichten“ legt ihn an  // eigener Schlüssel: Menü „Manga Tracker → Einrichten“ legt ihn an  // eigener Schlüssel: Menü „Manga Tracker → Einrichten“ legt ihn an
 
 const SHEET = 'Mangas';
 const HEAD = ['Kategorien', 'Titel', 'Letztes Kapitel', 'Status', 'Zuletzt gelesen', 'Link', 'Bewertung', 'Notiz', 'ID', 'Übersicht', 'Bild', 'Beschreibung', 'Beschreibung DE', 'Bildquelle',
@@ -304,12 +304,18 @@ function zeile_(sh, id) {
   return 0;
 }
 
+/** Text von außen (fremde Seiten, AniList, App) nie als Formel in die Tabelle schreiben:
+ *  beginnt er mit = (oder + / - ohne reine Zahl zu sein), wird ein ' vorangestellt. Beim Lesen ist das ' unsichtbar. */
+function txt_(v) {
+  return typeof v === 'string' && /^(=|[+\-](?!\d+(?:[.,]\d+)?$)|@)/.test(v) ? "'" + v : v;
+}
+
 function zelle_(field, v) {
   if (v === null || v === undefined) return '';
-  if (field === 'genres') return Array.isArray(v) ? v.join(', ') : String(v);
+  if (field === 'genres') return txt_(Array.isArray(v) ? v.join(', ') : String(v));
   if (field === 'notify') return v === true;
   if ((field === 'lastRead' || field === 'relDate' || field === 'back' || field === 'latestSince') && v) { const [y, m, d] = String(v).split('-').map(Number); return new Date(y, m - 1, d); }
-  return v;
+  return txt_(v);
 }
 
 function schreiben_(id, patch) {
@@ -318,7 +324,7 @@ function schreiben_(id, patch) {
   if (patch.url && !patch.overview && !sh.getRange(r, C.overview).getValue()) {
     const old = sh.getRange(r, C.url).getValue();
     const ov = (old && urlInfo_(old) && urlInfo_(old).ch == null) ? old : (uebersicht_(old) || uebersicht_(patch.url));
-    if (ov) sh.getRange(r, C.overview).setValue(ov);
+    if (ov) sh.getRange(r, C.overview).setValue(txt_(ov));
   }
   if ('image' in patch && !('imageSrc' in patch)) patch.imageSrc = '';
   if ('dbUrl' in patch) {
@@ -805,7 +811,7 @@ function apiKategorieNeu(key, name) {
   check_(key);
   name = String(name || '').replace(/[,;]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
   if (!name) return kategorien_();
-  if (!kategorien_().some(x => x.toLowerCase() === name.toLowerCase())) katBlatt_(true).appendRow([name]);
+  if (!kategorien_().some(x => x.toLowerCase() === name.toLowerCase())) katBlatt_(true).appendRow([txt_(name)]);
   return kategorien_();
 }
 
@@ -881,7 +887,7 @@ function bilderImportieren() {
             const sh = blatt_(); const r = zeile_(sh, it.id);
             if (r) {
               const cur = sh.getRange(r, C.image, 1, 4).getValues()[0];
-              sh.getRange(r, C.image, 1, 4).setValues([[cur[0] || shown, cur[1] || descEn, cur[2] || descDe, cur[3] || res.img]]);
+              sh.getRange(r, C.image, 1, 4).setValues([[cur[0] || txt_(shown), cur[1] || txt_(descEn), cur[2] || txt_(descDe), cur[3] || txt_(res.img)]]);
             }
           } finally { lock.releaseLock(); }
         }
@@ -1317,7 +1323,7 @@ function empfehlungenAktualisieren() {
   const sh = ss.getSheetByName(REC_SHEET) || ss.insertSheet(REC_SHEET);
   sh.clearContents();
   sh.getRange(1, 1, 1, REC_HEAD.length).setValues([REC_HEAD]).setFontWeight('bold');
-  if (rows.length) sh.getRange(2, 1, rows.length, REC_HEAD.length).setValues(rows);
+  if (rows.length) sh.getRange(2, 1, rows.length, REC_HEAD.length).setValues(rows.map(r => r.map(txt_)));
   Logger.log('Empfehlungen: ' + recs.length + ' neue Serien, ' + seq.length + ' Fortsetzungen (aus ' + seeds.length + ' deiner Serien).');
   return rows.length;
 }
@@ -1635,7 +1641,7 @@ function linkEintragenNeu_(url) {
           const h = hostOhneWww_(info.url), ho = hostOhneWww_(m.overview);
           if (h && ho && h !== ho) {
             const sh = blatt_(); const r = zeile_(sh, m.id);
-            if (r) sh.getRange(r, C.overview).setValue(uebersicht_(info.url) || info.url);
+            if (r) sh.getRange(r, C.overview).setValue(txt_(uebersicht_(info.url) || info.url));
           }
         }
       } finally { lock.releaseLock(); }
@@ -1725,7 +1731,7 @@ function apiSeiteWechseln(key, id, patch) {
     const lock = LockService.getScriptLock(); lock.waitLock(20000);
     try {
       const sh = blatt_(); const r = zeile_(sh, id);
-      if (r) sh.getRange(r, C.overview).setValue(uebersicht_(url) || url);
+      if (r) sh.getRange(r, C.overview).setValue(txt_(uebersicht_(url) || url));
     } finally { lock.releaseLock(); }
   }
   return apiSpeichern(key, id, patch);

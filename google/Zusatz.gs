@@ -51,7 +51,7 @@ function apiSeiteWechseln(key, id, patch) {
     const lock = LockService.getScriptLock(); lock.waitLock(20000);
     try {
       const sh = blatt_(); const r = zeile_(sh, id);
-      if (r) sh.getRange(r, C.overview).setValue(uebersicht_(url) || url);
+      if (r) sh.getRange(r, C.overview).setValue(txt_(uebersicht_(url) || url));
     } finally { lock.releaseLock(); }
   }
   return apiSpeichern(key, id, patch);
