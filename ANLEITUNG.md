@@ -1,5 +1,7 @@
 # Manga Tracker einrichten – Anleitung
 
+**Deutsch** | [English](SETUP.md)
+
 Mit dieser Anleitung bekommst du deinen eigenen Manga Tracker. Deine Liste liegt in **deiner eigenen Google-Tabelle** in deinem Google Drive – niemand sonst sieht sie. Die App-Oberfläche kommt von dieser GitHub-Seite und ist für alle gleich; sie verbindet sich mit deiner Tabelle über einen persönlichen Link mit Schlüssel.
 
 Du brauchst: ein Google-Konto, etwa 15 Minuten und am besten einen Computer für die Schritte 1 bis 4 (auf dem iPad geht es auch, im Browser in der Desktop-Ansicht).
