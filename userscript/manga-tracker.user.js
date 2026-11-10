@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Manga Tracker – Lesestand
 // @namespace    https://github.com/lobi1994/Manga-Tracker
-// @version      1.0.0
+// @version      1.1.0
 // @description  Zeigt auf der Kapitelübersicht, wo du aufgehört hast, und speichert gelesene Kapitel automatisch in deinem Manga Tracker.
 // @author       lobi1994
 // @match        *://*/*
@@ -10,6 +10,8 @@
 // @grant        GM.setValue
 // @run-at       document-idle
 // @noframes
+// @updateURL    https://raw.githubusercontent.com/lobi1994/Manga-Tracker/main/userscript/manga-tracker.user.js
+// @downloadURL  https://raw.githubusercontent.com/lobi1994/Manga-Tracker/main/userscript/manga-tracker.user.js
 // ==/UserScript==
 
 /*
@@ -35,17 +37,34 @@
   let box = null, undoUntil = 0;
 
   /* ------------------------------------------------------------ setup */
+  // On the Manga Tracker page in Safari: take app link + key and check the connection.
+  // Keeps looking for 3 minutes, so pasting the setup link after the page opened works too.
   if (host === 'lobi1994.github.io' && /^\/manga-tracker/i.test(location.pathname)) {
-    setTimeout(async () => {
-      let cfg = null;
-      try { cfg = JSON.parse(localStorage.getItem('mt-cfg') || 'null'); } catch (e) {}
-      if (!cfg || !/\/exec$/.test(cfg.u || '') || !cfg.k) return;
-      const old = await GM.getValue('cfg', null);
-      if (old && old.u === cfg.u && old.k === cfg.k) return;
-      await GM.setValue('cfg', { u: cfg.u, k: cfg.k });
-      await GM.setValue('hosts', null);
-      pill(T('Reading overlay connected ✓', 'Lesestand-Overlay verbunden ✓'), [], 4000);
-    }, 2500);
+    const until = Date.now() + 180000;
+    let lastTried = '';
+    const look = async () => {
+      let c = null;
+      try { c = JSON.parse(localStorage.getItem('mt-cfg') || 'null'); } catch (e) {}
+      if (c && /\/exec$/.test(c.u || '') && c.k && c.u + c.k !== lastTried) {
+        lastTried = c.u + c.k;
+        const cfg0 = { u: c.u, k: c.k };
+        await GM.setValue('cfg', cfg0);
+        await GM.setValue('hosts', null);
+        callWith(cfg0, 'apiLesestandHosts').then(async (h) => {
+          await GM.setValue('hosts', { t: Date.now(), h: h || [] });
+          pill(T('Reading overlay connected ✓ · ', 'Lesestand-Overlay verbunden ✓ · ') + (h || []).length + T(' reading sites', ' Leseseiten'), [], 6000);
+        }, (e) => {
+          const m = String(e && e.message || e);
+          pill(/Unbekannte Funktion/.test(m)
+            ? T('Connected, but the server file is missing: add Lesestand.gs in Apps Script and deploy a new version.', 'Verbunden, aber die Server-Datei fehlt: Lesestand.gs in Apps Script anlegen und eine neue Version bereitstellen.')
+            : T('Connection failed: ', 'Verbindung fehlgeschlagen: ') + esc(m), [], 0);
+        });
+        return;
+      }
+      if (Date.now() < until) setTimeout(look, 2000);
+      else if (!lastTried) pill(T('No setup found on this page. Paste your setup link here first.', 'Keine Einrichtung auf dieser Seite gefunden. Bitte zuerst deinen Einrichtungs-Link hier einfügen.'), [], 0);
+    };
+    setTimeout(look, 1500);
     return;
   }
 
@@ -53,7 +72,8 @@
   if (!cfg) return;
   if (/(^|\.)(google\.com|googleusercontent\.com|github\.com|instagram\.com|youtube\.com)$/.test(host)) return;
 
-  function call(fn, args) {
+  function call(fn, args) { return callWith(cfg, fn, args); }
+  function callWith(cfg, fn, args) {
     return new Promise((resolve, reject) => {
       GM.xmlHttpRequest({
         method: 'POST',
