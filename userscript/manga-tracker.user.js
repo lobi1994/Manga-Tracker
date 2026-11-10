@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Manga Tracker – Lesestand
 // @namespace    https://github.com/lobi1994/Manga-Tracker
-// @version      1.8.0
+// @version      1.8.1
 // @description  Zeigt auf der Kapitelübersicht, wo du aufgehört hast, speichert gelesene Kapitel automatisch und hilft, Manga-Ideen von Instagram in deinen Manga Tracker zu übernehmen.
 // @author       lobi1994
 // @match        *://*/*
@@ -421,7 +421,7 @@
         t = String(t || '').replace(/[\u{1F000}-\u{1FFFF}☀-➿️]/gu, '')
           .replace(/^[\s\d.\-–—:)•*#"“„'«»]+|[\s"“”'»«.,!?:;(\-–—]+$/g, '').replace(/\s+/g, ' ').trim()
           .replace(/^(?:name|title|titel|manhwa|manga|manhua|webtoon)\s*[:\-–]\s*/i, '');
-        if (t.length < 3 || t.length > 70 || NOISE.test(t) || /^\d+$/.test(t) || isInfo(t)) return;
+        if (t.length < 3 || t.length > 90 || NOISE.test(t) || /^\d+$/.test(t) || isInfo(t)) return;
         if (/\b(likes?|comments?|gefällt|kommentare)\b/i.test(t) && /\d/.test(t)) return;
         if (/\b(need to read|must read|you should|top \d+|best \w+ (?:manhwa|manga)|recommend|empfehl|part \d+)\b/i.test(t)) return;
         const k = t.toLowerCase();
@@ -444,7 +444,8 @@
       });
       // Text read from the pictures: single lines, and titles spread over 2-3 lines
       (ocr || []).forEach((raw) => {
-        const lines = String(raw || '').split(/\n+/).map((l) => l.trim()).filter(Boolean)
+        // Numbered lists ("1. Title 2. Title") often come back as one long line: one line per entry
+        const lines = String(raw || '').replace(/(?:^|\s)\d{1,2}[.)]\s+(?=\p{L})/gu, '\n').replace(/\s[|•·]\s/g, '\n').split(/\n+/).map((l) => l.trim()).filter(Boolean)
           .map((l) => {
             if (/@|https?:|www\.|\.com\b/i.test(l) || /^(read|swipe|save|link in bio|read now|swipe left)\b/i.test(l)) return null;
             const c2 = clean(l);
