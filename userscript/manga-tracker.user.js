@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Manga Tracker – Lesestand
 // @namespace    https://github.com/lobi1994/Manga-Tracker
-// @version      1.1.0
+// @version      1.1.1
 // @description  Zeigt auf der Kapitelübersicht, wo du aufgehört hast, und speichert gelesene Kapitel automatisch in deinem Manga Tracker.
 // @author       lobi1994
 // @match        *://*/*
@@ -42,7 +42,9 @@
   if (host === 'lobi1994.github.io' && /^\/manga-tracker/i.test(location.pathname)) {
     const until = Date.now() + 180000;
     let lastTried = '';
+    pill(T('Overlay is running – checking connection …', 'Overlay läuft – prüfe Verbindung …'), [], 0);
     const look = async () => {
+     try {
       let c = null;
       try { c = JSON.parse(localStorage.getItem('mt-cfg') || 'null'); } catch (e) {}
       if (c && /\/exec$/.test(c.u || '') && c.k && c.u + c.k !== lastTried) {
@@ -61,8 +63,9 @@
         });
         return;
       }
+      if (!lastTried) pill(T('No setup found on this page yet. Paste your setup link here.', 'Noch keine Einrichtung auf dieser Seite. Bitte deinen Einrichtungs-Link hier einfügen.'), [], 0);
       if (Date.now() < until) setTimeout(look, 2000);
-      else if (!lastTried) pill(T('No setup found on this page. Paste your setup link here first.', 'Keine Einrichtung auf dieser Seite gefunden. Bitte zuerst deinen Einrichtungs-Link hier einfügen.'), [], 0);
+     } catch (err) { pill(T('Overlay error: ', 'Overlay-Fehler: ') + esc(err && err.message || err), [], 0); }
     };
     setTimeout(look, 1500);
     return;
