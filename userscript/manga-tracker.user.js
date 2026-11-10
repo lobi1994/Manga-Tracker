@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Manga Tracker – Lesestand
 // @namespace    https://github.com/lobi1994/Manga-Tracker
-// @version      1.6.0
+// @version      1.7.0
 // @description  Zeigt auf der Kapitelübersicht, wo du aufgehört hast, speichert gelesene Kapitel automatisch und hilft, Manga-Ideen von Instagram in deinen Manga Tracker zu übernehmen.
 // @author       lobi1994
 // @match        *://*/*
@@ -335,14 +335,25 @@
     const igId = (u) => { const m = String(u || '').match(/instagram\.com\/(?:[A-Za-z0-9_.]+\/)?(?:p|reels?|tv)\/([A-Za-z0-9_-]+)/i); return m ? m[1] : null; };
     let inbox = [], lastKey = '-', open = false, searched = false, chipBox = null;
     let ocrTexts = [], ocrDone = {}, ocrBusy = 0, ocrOff = false, ocrInfo = null;
+    let blocked = [];                                        // suggestions you removed (long press / swipe)
+    GM.getValue('igBlock', []).then((b) => { blocked = b || []; });
     const loadInbox = () => call('apiInbox').then((l) => { inbox = l || []; return inbox; }, () => inbox);
     const nextOf = (id) => inbox.find((x) => x.id !== id);
 
     // Texts on the page: preview text, caption, picture descriptions (Instagram often puts the text on the picture there)
+    // Only the post on screen: an opened post window, otherwise the first post of the page (not "More posts" below)
+    const firstId = igId(location.href);
+    function postScope() {
+      const dlg = document.querySelector('div[role="dialog"] article') || document.querySelector('div[role="dialog"]');
+      if (dlg) return dlg;
+      const main = document.querySelector('main') || document.body;
+      return main.querySelector('article') || main;
+    }
     function texts() {
       const out = [];
-      ['og:description', 'og:title'].forEach((p) => { const m = document.querySelector('meta[property="' + p + '"]'); if (m && m.content) out.push(m.content); });
-      const scope = document.querySelector('main') || document.body;
+      // The preview text in the page head belongs to the post the page was loaded with
+      if (igId(location.href) === firstId) ['og:description', 'og:title'].forEach((p) => { const m = document.querySelector('meta[property="' + p + '"]'); if (m && m.content) out.push(m.content); });
+      const scope = postScope();
       scope.querySelectorAll('h1').forEach((h) => out.push(h.innerText || ''));
       scope.querySelectorAll('img[alt]').forEach((i) => { if (i.getBoundingClientRect().width > 150 && i.alt.length > 12) out.push(i.alt); });
       return out;
@@ -365,10 +376,29 @@
       const letters = (t.match(/\p{L}/gu) || []).length;
       return letters < 3 || letters < t.replace(/\s/g, '').length * 0.6;                                                   // mostly numbers or symbols
     }
+    // Remove chapter counts, status words and phrases like "Follow for more" from a line
+    const STATUS = 'ongoing|completed?|finished|hiatus|on hiatus|dropped|cancell?ed|end|the end|new|hot|laufend|abgeschlossen|pausiert';
+    const CH = 'ch(?:apter)?s?|chaps?|eps?|episodes?|kapitel|kap';
+    function clean(t) {
+      t = String(t || '');
+      if (/\b(may be an image|could be an image|kann ein bild|könnte ein bild|image of|photo by|foto von|photo shared by|beitrag von|reel von|video von)\b/i.test(t) && !/[„"“]/.test(t)) return '';
+      t = t.replace(/\b(?:follow|folge|folgt)\s+(?:me\s+|us\s+|mir\s+|uns\s+)?(?:for|für)\s+(?:more|mehr)\b[^\n]*/gi, ' ')
+        .replace(/\b(?:follow|folge|folgt)\s+@?\S+/gi, ' ')
+        .replace(/\b(?:beitrag|beiträge|post|posts|reel|reels)\b/gi, ' ')
+        .replace(new RegExp('\\b\\d+\\+?\\s*(?:' + CH + ')\\b\\.?', 'gi'), ' ')                // 308 Chapters
+        .replace(new RegExp('\\b(?:' + CH + ')\\.?\\s*[:#]?\\s*\\d+(?:\\.\\d+)?\\+?', 'gi'), ' ') // Chapter 308, Ch. 120+
+        .replace(/[(\[]\s*[)\]]/g, ' ');
+      const tail = new RegExp('[\\s\\-–—|•·:,/(\\[]+(?:' + STATUS + ')[\\s)\\].!]*$', 'i');
+      const head = new RegExp('^[\\s(\\[]*(?:' + STATUS + ')[\\s)\\]]*[\\-–—|•·:,/]+', 'i');
+      for (let k = 0; k < 4; k++) t = t.replace(tail, '').replace(head, '');
+      return t.replace(/[\s\-–—|•·:,/]+$/g, '').replace(/^[\s\-–—|•·:,/]+/g, '').replace(/\s+/g, ' ').trim();
+    }
     const TAGNOISE = /manhwa|manga|manhua|webtoon|anime|otaku|recommend|reels?|fyp|foryou|explore|viral|trend|edit|amv|follow/i;
     function candidates(list, ocr) {
       const c = new Map();
       const add = (t, s) => {
+        t = clean(t);
+        if (!t) return;
         t = String(t || '').replace(/[\u{1F000}-\u{1FFFF}☀-➿️]/gu, '')
           .replace(/^[\s\d.\-–—:)•*#"“„'«»]+|[\s"“”'»«.,!?:;(\-–—]+$/g, '').replace(/\s+/g, ' ').trim()
           .replace(/^(?:name|title|titel|manhwa|manga|manhua|webtoon)\s*[:\-–]\s*/i, '');
@@ -396,7 +426,11 @@
       // Text read from the pictures: single lines, and titles spread over 2-3 lines
       (ocr || []).forEach((raw) => {
         const lines = String(raw || '').split(/\n+/).map((l) => l.trim()).filter(Boolean)
-          .map((l) => (/@|https?:|www\.|\.com\b/i.test(l) || /^(read|swipe|save|follow|link in bio|read now|swipe left)\b/i.test(l) || isInfo(l.replace(/[^\p{L}\d\s\/.:+★⭐-]/gu, '').trim())) ? null : l);
+          .map((l) => {
+            if (/@|https?:|www\.|\.com\b/i.test(l) || /^(read|swipe|save|link in bio|read now|swipe left)\b/i.test(l)) return null;
+            const c2 = clean(l);
+            return c2 && !isInfo(c2.replace(/[^\p{L}\d\s\/.:+★⭐-]/gu, '').trim()) ? c2 : null;
+          });
         lines.forEach((l, i) => {
           if (!l) return;
           const words = l.split(' ').length;
@@ -419,7 +453,7 @@
 
     // Pictures on screen right now (in a picture series: the one you swiped to)
     function visibleImages() {
-      const scope = document.querySelector('main') || document.body;
+      const scope = postScope();
       return Array.prototype.filter.call(scope.querySelectorAll('img'), (i) => {
         const r = i.getBoundingClientRect();
         const src = i.currentSrc || i.src || '';
@@ -475,10 +509,48 @@
 
     function fillChips(onPick) {
       if (!chipBox) return;
-      const list = candidates(texts(), ocrTexts);
+      const list = candidates(texts(), ocrTexts).filter((t) => blocked.indexOf(t.toLowerCase()) < 0);
       chipBox.innerHTML = '';
       if (!list.length) chipBox.appendChild(mk('div', 'm', T('No title found in the text – type it in, or swipe to the next picture.', 'Kein Titel im Text gefunden – tipp ihn ein oder wisch zum nächsten Bild.')));
-      list.forEach((t) => chipBox.appendChild(btn(t, '', () => onPick(t))));
+      list.forEach((t) => chipBox.appendChild(chip(t, onPick)));
+    }
+
+    // Remove a suggestion for good: hold it, or swipe it sideways
+    function removeChip(t, b, onPick) {
+      const k = t.toLowerCase();
+      if (blocked.indexOf(k) < 0) { blocked.push(k); blocked = blocked.slice(-400); GM.setValue('igBlock', blocked); }
+      b.remove();
+      if (!ocrInfo) return;
+      ocrInfo.textContent = '„' + t + '“ ' + T('hidden', 'ausgeblendet') + ' ';
+      ocrInfo.appendChild(btn(T('Undo', 'Rückgängig'), 's', () => {
+        blocked = blocked.filter((x) => x !== k); GM.setValue('igBlock', blocked);
+        ocrInfo.textContent = ''; fillChips(onPick);
+      }));
+    }
+    function chip(t, onPick) {
+      const b = mk('button', '', t);
+      b.style.cssText = '-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:pan-y;transition:opacity .15s';
+      let timer = 0, x0 = 0, y0 = 0, dx = 0, swiping = false, used = false;
+      b.addEventListener('touchstart', (e) => {
+        const q = e.touches[0]; x0 = q.clientX; y0 = q.clientY; dx = 0; swiping = false; used = false;
+        timer = setTimeout(() => { used = true; removeChip(t, b, onPick); }, 600);
+      }, { passive: true });
+      b.addEventListener('touchmove', (e) => {
+        const q = e.touches[0]; dx = q.clientX - x0;
+        if (Math.abs(q.clientY - y0) > 12 || Math.abs(dx) > 8) clearTimeout(timer);
+        if (Math.abs(dx) > 8) { swiping = true; b.style.transform = 'translateX(' + dx + 'px)'; b.style.opacity = String(Math.max(0.15, 1 - Math.abs(dx) / 120)); }
+      }, { passive: true });
+      const end = () => {
+        clearTimeout(timer);
+        if (swiping && Math.abs(dx) > 60) { used = true; removeChip(t, b, onPick); return; }
+        if (swiping) used = true;
+        b.style.transform = ''; b.style.opacity = '';
+      };
+      b.addEventListener('touchend', end);
+      b.addEventListener('touchcancel', end);
+      b.addEventListener('contextmenu', (e) => e.preventDefault());
+      b.onclick = (ev) => { ev.stopPropagation(); if (used) { used = false; return; } onPick(t); };
+      return b;
     }
 
     function showPanel(id) {
@@ -502,6 +574,7 @@
         el.appendChild(head);
         el.appendChild(minBtn);
         el.appendChild(btn('✕', 'x keep', () => { open = false; hide(); }));
+        el.appendChild(mk('div', 'm w', T('Hold or swipe a suggestion sideways to hide it.', 'Vorschlag gedrückt halten oder zur Seite wischen, um ihn auszublenden.')));
         chipBox = mk('div', 'chips');
         el.appendChild(chipBox);
         ocrInfo = mk('div', 'm w', '');
@@ -567,7 +640,9 @@
       const key = id || location.pathname;                 // feed, profile, after login … each counts as a new page
       if (key === lastKey) return;
       lastKey = key;
-      open = false;
+      open = false; searched = false; chipBox = null; ocrInfo = null;
+      ocrTexts = []; ocrDone = {}; ocrBusy = 0;                // forget everything from the previous post
+      hide();
       await loadInbox();
       if (!id) {
         if (inbox.length) pill('📥 <b>' + inbox.length + '</b> ' + T('manga ideas saved', 'Manga-Ideen gemerkt'), [{ label: T('Open ›', 'Öffnen ›'), onClick: () => { location.href = inbox[0].url; } }], 0);
