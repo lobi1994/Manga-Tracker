@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Manga Tracker – Lesestand
 // @namespace    https://github.com/lobi1994/Manga-Tracker
-// @version      1.2.0
+// @version      1.3.0
 // @description  Zeigt auf der Kapitelübersicht, wo du aufgehört hast, speichert gelesene Kapitel automatisch und hilft, Manga-Ideen von Instagram in deinen Manga Tracker zu übernehmen.
 // @author       lobi1994
 // @match        *://*/*
@@ -333,6 +333,7 @@
   function instagram() {
     const igId = (u) => { const m = String(u || '').match(/instagram\.com\/(?:[A-Za-z0-9_.]+\/)?(?:p|reels?|tv)\/([A-Za-z0-9_-]+)/i); return m ? m[1] : null; };
     let inbox = [], lastKey = '-', open = false, searched = false, chipBox = null;
+    let ocrTexts = [], ocrDone = {}, ocrBusy = 0, ocrOff = false, ocrInfo = null;
     const loadInbox = () => call('apiInbox').then((l) => { inbox = l || []; return inbox; }, () => inbox);
     const nextOf = (id) => inbox.find((x) => x.id !== id);
 
@@ -347,7 +348,7 @@
     }
     const NOISE = /^(manhwa|manga|manhua|webtoon|webtoons|murim|action|fantasy|romance|comedy|drama|isekai|anime|otaku|follow|like|comment|share|save|link in bio|read|reading|recommendation|recommendations|part \d+|new|top \d+)s?$/i;
     const TAGNOISE = /manhwa|manga|manhua|webtoon|anime|otaku|recommend|reels?|fyp|foryou|explore|viral|trend|edit|amv|follow/i;
-    function candidates(list) {
+    function candidates(list, ocr) {
       const c = new Map();
       const add = (t, s) => {
         t = String(t || '').replace(/[\u{1F000}-\u{1FFFF}☀-➿️]/gu, '')
@@ -374,12 +375,48 @@
           add(h.slice(1).replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2'), 0.5);
         });
       });
-      return [...c.values()].sort((a, b) => b.s - a.s).slice(0, 10).map((o) => o.t);
+      // Text read from the pictures: single lines, and titles spread over 2-3 lines
+      (ocr || []).forEach((raw) => {
+        const lines = String(raw || '').split(/\n+/).map((l) => l.trim()).filter((l) => l && !/@|https?:|www\.|\.com\b/i.test(l) && !/^(read|swipe|save|follow|link in bio|read now|swipe left)\b/i.test(l));
+        lines.forEach((l, i) => {
+          if (l.split(' ').length <= 9) add(l, 1.5);
+          const two = lines.slice(i, i + 2), three = lines.slice(i, i + 3);
+          if (two.length === 2 && two.every((x) => x.split(' ').length <= 4)) add(two.join(' '), 2);
+          if (three.length === 3 && three.every((x) => x.split(' ').length <= 3)) add(three.join(' '), 2.5);
+        });
+      });
+      return [...c.values()].sort((a, b) => b.s - a.s).slice(0, 12).map((o) => o.t);
+    }
+
+    // Pictures on screen right now (in a picture series: the one you swiped to)
+    function visibleImages() {
+      const scope = document.querySelector('main') || document.body;
+      return Array.prototype.filter.call(scope.querySelectorAll('img'), (i) => {
+        const r = i.getBoundingClientRect();
+        const src = i.currentSrc || i.src || '';
+        return r.width > 200 && r.height > 150 && r.left > -20 && r.right < innerWidth + 20 && r.bottom > 0 && r.top < innerHeight
+          && /^https:\/\/[^\/]*(cdninstagram\.com|fbcdn\.net)\//i.test(src);
+      }).map((i) => i.currentSrc || i.src);
+    }
+    function readPictures(onNew) {
+      if (ocrOff) return;
+      visibleImages().forEach((src) => {
+        const k = src.replace(/[?#].*$/, '');
+        if (ocrDone[k] || Object.keys(ocrDone).length >= 12) return;
+        ocrDone[k] = 1; ocrBusy++;
+        if (ocrInfo) ocrInfo.textContent = T('🔍 Reading picture …', '🔍 Bild wird gelesen …');
+        call('apiBildText', [src]).then((r) => {
+          ocrBusy--;
+          if (r && r.error === 'drive') { ocrOff = true; if (ocrInfo) ocrInfo.textContent = T('Picture reading is not set up (Drive API).', 'Bilderkennung nicht eingerichtet (Drive API).'); return; }
+          if (r && r.text) { ocrTexts.push(r.text); onNew(); }
+          if (ocrInfo && !ocrBusy) ocrInfo.textContent = T('Swipe to read the next picture.', 'Wisch weiter, um das nächste Bild zu lesen.');
+        }, () => { ocrBusy--; if (ocrInfo && !ocrBusy) ocrInfo.textContent = ''; });
+      });
     }
 
     function fillChips(onPick) {
       if (!chipBox) return;
-      const list = candidates(texts());
+      const list = candidates(texts(), ocrTexts);
       chipBox.innerHTML = '';
       if (!list.length) chipBox.appendChild(mk('div', 'm', T('No title found in the text – type it in, or swipe to the next picture.', 'Kein Titel im Text gefunden – tipp ihn ein oder wisch zum nächsten Bild.')));
       list.forEach((t) => chipBox.appendChild(btn(t, '', () => onPick(t))));
@@ -387,6 +424,7 @@
 
     function showPanel(id) {
       open = true; searched = false;
+      ocrTexts = []; ocrDone = {}; ocrBusy = 0;
       const fromInbox = inbox.some((x) => x.id === id);
       card((el) => {
         const head = mk('div', 'hd', '📚 ' + T('Which manga is it? Tap the title:', 'Welcher Manga? Tipp auf den Titel:'));
@@ -394,6 +432,8 @@
         el.appendChild(btn('✕', 'x', () => { open = false; hide(); }));
         chipBox = mk('div', 'chips');
         el.appendChild(chipBox);
+        ocrInfo = mk('div', 'm w', '');
+        el.appendChild(ocrInfo);
         const q = mk('div', 'q');
         const inp = mk('input'); inp.placeholder = T('Type a title …', 'Titel eintippen …'); inp.type = 'search';
         const res = mk('div', 'w');
@@ -441,9 +481,10 @@
         if (fromInbox) { const nx = nextOf(id); if (nx) foot.appendChild(btn(T('Skip ›', 'Später ›'), 's', () => { location.href = nx.url; })); }
         el.appendChild(foot);
         fillChips(search);
-        // Swiping through a picture series loads new pictures: update the suggestions
+        readPictures(() => { if (!searched) fillChips(search); });
+        // Swiping through a picture series loads new pictures: update the suggestions and read the new picture
         let t = 0;
-        const mo = new MutationObserver(() => { if (!open || searched) return; clearTimeout(t); t = setTimeout(() => fillChips(search), 1200); });
+        const mo = new MutationObserver(() => { if (!open) return; clearTimeout(t); t = setTimeout(() => { if (!searched) fillChips(search); readPictures(() => { if (!searched) fillChips(search); }); }, 1200); });
         mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['alt'] });
         setTimeout(() => mo.disconnect(), 10 * 60 * 1000);
       });

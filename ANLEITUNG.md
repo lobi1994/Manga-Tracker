@@ -133,6 +133,14 @@ Benutzen: In Instagram bei einem Reel oder Post auf **Teilen** (Papierflieger) �
 
 Auf jedem anderen Instagram-Post in Safari gibt es unten den Knopf **Manga suchen**.
 
+**Text auf Bildern lesen** (optional, einmalig ca. 2 Minuten): Damit liest das Overlay auch Titel, die nur auf den Bildern stehen (über Google Drive, kostenlos).
+
+1. In Apps Script links bei **Dienste** auf **+** → **Drive API** → **Hinzufügen**.
+2. Oben im Funktionsmenü **ocrBerechtigen** auswählen → **Ausführen** → Zugriff erlauben.
+3. **Bereitstellen → Bereitstellungen verwalten → Stift → Neue Version → Bereitstellen.**
+
+Danach liest das Overlay das gerade sichtbare Bild (bei Bilderserien beim Wischen jedes weitere) und zeigt die erkannten Zeilen als Vorschläge.
+
 Kapitelzahlen kommen von MangaUpdates (sonst AniList). Steht der Titel nur im Ton eines Videos, findet das Overlay ihn nicht – dann einfach eintippen.
 
 ## 7. Updates

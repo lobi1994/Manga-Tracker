@@ -135,6 +135,14 @@ How to use: in Instagram, on a reel or post tap **Share** (paper plane) → **Sh
 
 On any other Instagram post in Safari there is a **Find manga** button at the bottom.
 
+**Read text on pictures** (optional, once, about 2 minutes): lets the overlay also read titles that only appear on the pictures (via Google Drive, free).
+
+1. In Apps Script, next to **Services** on the left, click **+** → **Drive API** → **Add**.
+2. In the function menu at the top choose **ocrBerechtigen** → **Run** → allow access.
+3. **Deploy → Manage deployments → pencil → New version → Deploy.**
+
+The overlay then reads the picture on screen (in picture series, each one you swipe to) and shows the recognised lines as suggestions.
+
 Chapter counts come from MangaUpdates (otherwise AniList). If the title is only spoken in a video, the overlay cannot find it – just type it in.
 
 ## 7. Updates
