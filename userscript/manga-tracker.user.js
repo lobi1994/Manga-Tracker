@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Manga Tracker – Lesestand
 // @namespace    https://github.com/lobi1994/Manga-Tracker
-// @version      1.10.0
+// @version      1.11.0
 // @description  Zeigt auf der Kapitelübersicht, wo du aufgehört hast, speichert gelesene Kapitel automatisch und hilft, Manga-Ideen von Instagram in deinen Manga Tracker zu übernehmen.
 // @author       lobi1994
 // @match        *://*/*
@@ -613,9 +613,10 @@
         const q = mk('div', 'q');
         const inp = mk('input'); inp.placeholder = T('Type a title …', 'Titel eintippen …'); inp.type = 'search';
         const res = mk('div', 'w');
+        let clrShow = () => {};
         const search = (t) => {
           t = String(t || '').trim(); if (!t) return;
-          searched = true; inp.value = t;
+          searched = true; inp.value = t; clrShow();
           res.innerHTML = ''; res.appendChild(mk('div', 'm', T('Searching …', 'Suche …')));
           call('apiMangaSuche', [t]).then((list) => {
             res.innerHTML = '';
@@ -642,7 +643,20 @@
           }, () => { res.innerHTML = ''; res.appendChild(mk('div', 'm', T('Search failed.', 'Suche fehlgeschlagen.'))); });
         };
         inp.onkeydown = (ev) => { if (ev.key === 'Enter') search(inp.value); };
-        q.appendChild(inp); q.appendChild(btn(T('Search', 'Suchen'), '', () => search(inp.value)));
+        // ✕ clears the search field and the results (unless you added something, the found series disappear too)
+        const clearSearch = () => {
+          inp.value = ''; res.innerHTML = ''; searched = false; clr.style.visibility = 'hidden';
+          fillChips(search);
+        };
+        const clr = btn('✕', 's', clearSearch);
+        clrShow = () => { clr.style.visibility = 'visible'; };
+        clr.setAttribute('aria-label', T('Clear', 'Löschen'));
+        clr.style.visibility = 'hidden';
+        inp.addEventListener('input', () => {
+          clr.style.visibility = inp.value ? 'visible' : 'hidden';
+          if (!inp.value) clearSearch();
+        });
+        q.appendChild(inp); q.appendChild(clr); q.appendChild(btn(T('Search', 'Suchen'), '', () => search(inp.value)));
         el.appendChild(q);
         el.appendChild(res);
         const foot = mk('div', 'chips');
