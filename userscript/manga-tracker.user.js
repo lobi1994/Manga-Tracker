@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Manga Tracker – Lesestand
 // @namespace    https://github.com/lobi1994/Manga-Tracker
-// @version      1.9.0
+// @version      1.9.1
 // @description  Zeigt auf der Kapitelübersicht, wo du aufgehört hast, speichert gelesene Kapitel automatisch und hilft, Manga-Ideen von Instagram in deinen Manga Tracker zu übernehmen.
 // @author       lobi1994
 // @match        *://*/*
@@ -399,7 +399,9 @@
     const STATUS = 'ongoing|completed?|finished|hiatus|on hiatus|dropped|cancell?ed|end|the end|new|hot|laufend|abgeschlossen|pausiert';
     const CH = 'ch(?:apter)?s?|chaps?|eps?|episodes?|kapitel|kap';
     function clean(t) {
-      t = String(t || '');
+      // The picture reader often reads the separator "|" as "I", "l" or "1": "292 CHAPTERS I COMPLETED"
+      t = String(t || '').replace(new RegExp('\\s[Il1|]\\s+(?=(?:' + STATUS + ')\\b)', 'gi'), ' | ')
+        .replace(new RegExp('(\\b(?:' + CH + '))\\s+[Il1]\\s', 'gi'), '$1 | ');
       if (/\b(may be an image|could be an image|kann ein bild|könnte ein bild|image of|photo by|foto von|photo shared by|beitrag von|reel von|video von)\b/i.test(t) && !/[„"“]/.test(t)) return '';
       t = t.replace(/\b(?:follow|folge|folgt)\s+(?:me\s+|us\s+|mir\s+|uns\s+)?(?:for|für)\s+(?:more|mehr)\b[^\n]*/gi, ' ')
         .replace(/\b(?:follow|folge|folgt)\s+@?\S+/gi, ' ')
@@ -410,7 +412,7 @@
         .replace(/[(\[]\s*[)\]]/g, ' ');
       const tail = new RegExp('[\\s\\-–—|•·:,/(\\[]+(?:' + STATUS + ')[\\s)\\].!]*$', 'i');
       const head = new RegExp('^[\\s(\\[]*(?:' + STATUS + ')[\\s)\\]]*[\\-–—|•·:,/]+', 'i');
-      for (let k = 0; k < 4; k++) t = t.replace(tail, '').replace(head, '');
+      for (let k = 0; k < 4; k++) t = t.replace(tail, '').replace(head, '').replace(/\s+[|Il1]\s*$/, '');
       return t.replace(/[\s\-–—|•·:,/]+$/g, '').replace(/^[\s\-–—|•·:,/]+/g, '').replace(/\s+/g, ' ').trim();
     }
     const TAGNOISE = /manhwa|manga|manhua|webtoon|anime|otaku|recommend|reels?|fyp|foryou|explore|viral|trend|edit|amv|follow/i;
@@ -448,7 +450,7 @@
         // Numbered lists ("1. Title 2. Title") often come back as one long line: one line per entry
         const lines = String(raw || '').replace(/(?:^|\s)\d{1,2}[.)]\s+(?=\p{L})/gu, '\n').replace(/\s[|•·]\s/g, '\n').split(/\n+/).map((l) => l.trim()).filter(Boolean)
           .map((l) => {
-            if (/@|https?:|www\.|\.com\b/i.test(l) || /^(read|swipe|save|link in bio|read now|swipe left)\b/i.test(l)) return null;
+            if (!/[A-Za-z]{2}/.test(l) || /@|https?:|www\.|\.com\b/i.test(l) || /^(read|swipe|save|link in bio|read now|swipe left)\b/i.test(l)) return null;
             const c2 = clean(l);
             if (!c2 || isInfo(c2.replace(/[^\p{L}\d\s\/.:+★⭐-]/gu, '').trim())) return null;
             // A line that had a chapter count or status removed is a complete title on its own: never join it with neighbours
@@ -602,7 +604,8 @@
         el.appendChild(head);
         el.appendChild(minBtn);
         el.appendChild(btn('✕', 'x keep', () => { open = false; hide(); }));
-        el.appendChild(mk('div', 'm w', T('Hold or swipe a suggestion sideways to hide it.', 'Vorschlag gedrückt halten oder zur Seite wischen, um ihn auszublenden.')));
+        const ver = (typeof GM !== 'undefined' && GM.info && GM.info.script && GM.info.script.version) || '';
+        el.appendChild(mk('div', 'm w', T('Hold or swipe a suggestion sideways to hide it.', 'Vorschlag gedrückt halten oder zur Seite wischen, um ihn auszublenden.') + (ver ? ' · v' + ver : '')));
         chipBox = mk('div', 'chips');
         el.appendChild(chipBox);
         ocrInfo = mk('div', 'm w', '');
