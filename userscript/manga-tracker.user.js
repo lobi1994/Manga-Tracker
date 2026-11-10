@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Manga Tracker – Lesestand
 // @namespace    https://github.com/lobi1994/Manga-Tracker
-// @version      1.4.0
+// @version      1.5.0
 // @description  Zeigt auf der Kapitelübersicht, wo du aufgehört hast, speichert gelesene Kapitel automatisch und hilft, Manga-Ideen von Instagram in deinen Manga Tracker zu übernehmen.
 // @author       lobi1994
 // @match        *://*/*
@@ -127,7 +127,8 @@
       'button{font:600 14px -apple-system,system-ui,sans-serif;border:0;border-radius:10px;padding:8px 12px;' +
       'background:' + ACCENT + ';color:#fff;cursor:pointer}' +
       'button.s{background:rgba(255,255,255,.14)}button.x{background:none;padding:6px 8px;opacity:.7}' +
-      '.p.big{max-height:62vh;overflow:auto;align-items:flex-start}.w{width:100%}.hd{flex:1;font-weight:700}' +
+      '.p.big{max-height:62vh;overflow:auto;align-items:flex-start}.w{width:100%}.hd{flex:1;font-weight:700;cursor:pointer}' +
+      '.p.min{max-height:none;overflow:visible;align-items:center;max-width:max-content}.p.min>*:not(.keep){display:none}' +
       '.chips{display:flex;flex-wrap:wrap;gap:6px;width:100%;margin:4px 0}.chips button{background:rgba(255,255,255,.14);font-weight:500;padding:6px 10px}' +
       '.q{display:flex;gap:6px;width:100%}input{flex:1;min-width:0;font:15px -apple-system,system-ui,sans-serif;padding:8px 10px;border-radius:10px;border:0;background:#fff;color:#111}' +
       '.r{display:flex;gap:10px;align-items:center;width:100%;padding:8px 0;border-top:1px solid rgba(255,255,255,.12)}' +
@@ -142,7 +143,7 @@
   function pill(html, buttons, ms) {
     const b = root();
     clearTimeout(b.timer);
-    b.el.classList.remove('big');
+    b.el.classList.remove('big', 'min');
     b.el.innerHTML = '<div class="t">' + html + '</div>';
     (buttons || []).forEach((btn) => {
       const e = document.createElement('button');
@@ -347,6 +348,23 @@
       return out;
     }
     const NOISE = /^(manhwa|manga|manhua|webtoon|webtoons|murim|action|fantasy|romance|comedy|drama|isekai|anime|otaku|follow|like|comment|share|save|link in bio|read|reading|recommendation|recommendations|part \d+|new|top \d+)s?$/i;
+    // Words that describe a series (status, genre, chapter count …) – not its title
+    const INFO = 'ongoing|completed?|finished|hiatus|on hiatus|dropped|cancell?ed|season \\d+|the end|end|new|hot|top|best|must read|' +
+      'action|adventure|fantasy|dark fantasy|romance|comedy|drama|horror|thriller|mystery|psychological|tragedy|isekai|murim|martial arts?|wuxia|' +
+      'regression|regressor|reincarnation|reincarnated|transmigration|revenge|system|leveling|level up|dungeons?|hunters?|harem|school life|school|slice of life|' +
+      'cultivation|overpowered|op mc|op|villainess|historical|sports|sci-?fi|shounen|seinen|shoujo|josei|supernatural|magic|demons?|' +
+      'manhwa|manhua|manga|webtoons?|comics?|genres?|status|chapters?|episodes?|rating|type|author|artist|art|story|published|release|summary|synopsis|' +
+      'recommendation|recommendations|part \\d+|vol\\.? ?\\d+|volume \\d+';
+    const INFO_ONLY = new RegExp('^(?:(?:' + INFO + ')(?:[\\s,/&|•·+\\-:]+|$))+$', 'i');
+    function isInfo(t) {
+      if (INFO_ONLY.test(t)) return true;
+      if (/^\d+\+?\s*(?:ch(?:apter)?s?|chaps?|eps?|episodes?|kapitel|kap|volumes?|vols?)\b/i.test(t)) return true;       // 262 Chapters
+      if (/\b(?:ch(?:apter)?s?|chaps?|eps?|episodes?|kapitel|kap)\.?\s*#?\s*\d+/i.test(t)) return true;                     // Chapter 262, Ch. 120+
+      if (/^(?:genres?|status|chapters?|episodes?|rating|type|author|artist|art|story|released?|year|score|tags?)\s*[:\-–]/i.test(t)) return true;
+      if (/\d+(?:[.,]\d+)?\s*\/\s*(?:10|5)\b|★|⭐|☆/.test(t)) return true;                                               // 9.5/10, stars
+      const letters = (t.match(/\p{L}/gu) || []).length;
+      return letters < 3 || letters < t.replace(/\s/g, '').length * 0.6;                                                   // mostly numbers or symbols
+    }
     const TAGNOISE = /manhwa|manga|manhua|webtoon|anime|otaku|recommend|reels?|fyp|foryou|explore|viral|trend|edit|amv|follow/i;
     function candidates(list, ocr) {
       const c = new Map();
@@ -354,7 +372,7 @@
         t = String(t || '').replace(/[\u{1F000}-\u{1FFFF}☀-➿️]/gu, '')
           .replace(/^[\s\d.\-–—:)•*#"“„'«»]+|[\s"“”'»«.,!?:;(\-–—]+$/g, '').replace(/\s+/g, ' ').trim()
           .replace(/^(?:name|title|titel|manhwa|manga|manhua|webtoon)\s*[:\-–]\s*/i, '');
-        if (t.length < 3 || t.length > 70 || NOISE.test(t) || /^\d+$/.test(t)) return;
+        if (t.length < 3 || t.length > 70 || NOISE.test(t) || /^\d+$/.test(t) || isInfo(t)) return;
         if (/\b(likes?|comments?|gefällt|kommentare)\b/i.test(t) && /\d/.test(t)) return;
         if (/\b(need to read|must read|you should|top \d+|best \w+ (?:manhwa|manga)|recommend|empfehl|part \d+)\b/i.test(t)) return;
         const k = t.toLowerCase();
@@ -377,15 +395,26 @@
       });
       // Text read from the pictures: single lines, and titles spread over 2-3 lines
       (ocr || []).forEach((raw) => {
-        const lines = String(raw || '').split(/\n+/).map((l) => l.trim()).filter((l) => l && !/@|https?:|www\.|\.com\b/i.test(l) && !/^(read|swipe|save|follow|link in bio|read now|swipe left)\b/i.test(l));
+        const lines = String(raw || '').split(/\n+/).map((l) => l.trim()).filter(Boolean)
+          .map((l) => (/@|https?:|www\.|\.com\b/i.test(l) || /^(read|swipe|save|follow|link in bio|read now|swipe left)\b/i.test(l) || isInfo(l.replace(/[^\p{L}\d\s\/.:+★⭐-]/gu, '').trim())) ? null : l);
         lines.forEach((l, i) => {
-          if (l.split(' ').length <= 9) add(l, 1.5);
+          if (!l) return;
+          const words = l.split(' ').length;
+          if (words <= 9 && !(words === 1 && l.length < 5)) add(l, 1.5);
           const two = lines.slice(i, i + 2), three = lines.slice(i, i + 3);
-          if (two.length === 2 && two.every((x) => x.split(' ').length <= 4)) add(two.join(' '), 2);
-          if (three.length === 3 && three.every((x) => x.split(' ').length <= 3)) add(three.join(' '), 2.5);
+          if (two.length === 2 && two.every((x) => x && x.split(' ').length <= 4)) add(two.join(' '), 2);
+          if (three.length === 3 && three.every((x) => x && x.split(' ').length <= 3)) add(three.join(' '), 2.5);
         });
       });
-      return [...c.values()].sort((a, b) => b.s - a.s).slice(0, 12).map((o) => o.t);
+      // Drop pieces of a title that is already suggested in full ("MOUNT HUA" next to "Return of the Mount Hua Sect")
+      const all = [...c.values()].sort((a, b) => b.s - a.s || b.t.length - a.t.length);
+      const kept = [];
+      all.forEach((o) => {
+        const k = o.t.toLowerCase();
+        if (kept.some((x) => x.t.length > o.t.length && x.t.toLowerCase().indexOf(k) >= 0)) return;
+        kept.push(o);
+      });
+      return kept.slice(0, 10).map((o) => o.t);
     }
 
     // Pictures on screen right now (in a picture series: the one you swiped to)
@@ -457,9 +486,22 @@
       ocrTexts = []; ocrDone = {}; ocrBusy = 0;
       const fromInbox = inbox.some((x) => x.id === id);
       card((el) => {
-        const head = mk('div', 'hd', '📚 ' + T('Which manga is it? Tap the title:', 'Welcher Manga? Tipp auf den Titel:'));
+        const head = mk('div', 'hd keep', '');
+        const full = '📚 ' + T('Which manga is it? Tap the title:', 'Welcher Manga? Tipp auf den Titel:');
+        const small = '📚 ' + T('Manga search', 'Manga-Suche');
+        head.textContent = full;
+        // Minimise: shrink to a small button so you can look at the post again; tap to open it again
+        const minBtn = btn('▾', 'x keep', () => toggle());
+        const toggle = () => {
+          const m = el.classList.toggle('min');
+          head.textContent = m ? small : full;
+          minBtn.textContent = m ? '▴' : '▾';
+        };
+        head.onclick = () => { if (el.classList.contains('min')) toggle(); };
+        el.classList.remove('min');
         el.appendChild(head);
-        el.appendChild(btn('✕', 'x', () => { open = false; hide(); }));
+        el.appendChild(minBtn);
+        el.appendChild(btn('✕', 'x keep', () => { open = false; hide(); }));
         chipBox = mk('div', 'chips');
         el.appendChild(chipBox);
         ocrInfo = mk('div', 'm w', '');
