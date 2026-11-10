@@ -1437,12 +1437,37 @@ applyPage(); applyLang(); reload(false);
 <script>
 /* App version shown at the bottom of every page; raise it with every update and note it in the change log */
 (function(){
-  var APP_VERSION = 'v2.6.0', APP_DATE = '10.11.2026';
+  var APP_VERSION = 'v2.6.1', APP_DATE = '10.11.2026';
   var f = document.createElement('div');
   f.id = 'appVersion';
   f.textContent = 'Manga Tracker ' + APP_VERSION + ' \u00b7 ' + APP_DATE;
   f.style.cssText = 'text-align:center;font-size:11px;color:var(--muted,#888);padding:24px 0 16px;opacity:.8';
   document.body.appendChild(f);
+})();
+</script>
+<script>
+/* v2.6.1: In the home screen app, iOS opens links in a small built-in browser where Safari extensions
+ * (the reading overlay) do not run. Open reading sites in the real Safari instead (x-safari-https://). */
+(function(){
+  var ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var standalone = window.navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+  if (!ios || !standalone) return;
+  var skip = /(^|\.)(google\.com|googleusercontent\.com|github\.io|github\.com|anilist\.co|mangaupdates\.com)$/i;
+  function toSafari(u) {
+    var m = String(u || '').match(/^(https?):\/\/([^\/?#]+)/i);
+    if (!m || skip.test(m[2].toLowerCase())) return null;
+    return 'x-safari-' + u;
+  }
+  document.addEventListener('click', function (ev) {
+    var a = ev.target && ev.target.closest && ev.target.closest('a[href]');
+    if (!a || (a.target !== '_blank' && !/^https?:/i.test(a.getAttribute('href') || ''))) return;
+    var x = toSafari(a.href);
+    if (!x) return;
+    ev.preventDefault(); ev.stopPropagation();
+    location.href = x;
+  }, true);
+  var wo = window.open;
+  window.open = function (u) { var x = toSafari(u); if (x) { location.href = x; return null; } return wo.apply(window, arguments); };
 })();
 </script>
 <script>
