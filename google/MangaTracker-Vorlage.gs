@@ -1934,6 +1934,14 @@ function apiInbox(key) {
     .map(function (r) { return { url: r.url, id: igId_(r.url), date: r.date }; });
 }
 
+/** Alle geteilten Links für die Liste in der App, neueste zuerst. */
+function apiInboxAlle(key) {
+  check_(key);
+  return inboxZeilen_(inboxBlatt_()).filter(function (r) { return r.url; }).map(function (r) {
+    return { url: r.url, date: r.date, status: r.status || 'offen', title: r.title };
+  }).reverse();
+}
+
 /** Link als erledigt oder verworfen markieren. */
 function apiInboxStatus(key, url, status, title) {
   check_(key);

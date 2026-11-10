@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Manga Tracker – Lesestand
 // @namespace    https://github.com/lobi1994/Manga-Tracker
-// @version      1.5.1
+// @version      1.6.0
 // @description  Zeigt auf der Kapitelübersicht, wo du aufgehört hast, speichert gelesene Kapitel automatisch und hilft, Manga-Ideen von Instagram in deinen Manga Tracker zu übernehmen.
 // @author       lobi1994
 // @match        *://*/*
@@ -571,7 +571,7 @@
       await loadInbox();
       if (!id) {
         if (inbox.length) pill('📥 <b>' + inbox.length + '</b> ' + T('manga ideas saved', 'Manga-Ideen gemerkt'), [{ label: T('Open ›', 'Öffnen ›'), onClick: () => { location.href = inbox[0].url; } }], 0);
-        else hide();
+        else pill('📥 ' + T('No open manga ideas', 'Keine offenen Manga-Ideen'), [], 4000);
         return;
       }
       if (inbox.some((x) => x.id === id)) setTimeout(() => showPanel(id), 2000);   // from the inbox: start right away

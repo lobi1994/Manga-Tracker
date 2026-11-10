@@ -250,7 +250,9 @@ details.box summary{cursor:pointer;font-weight:700}
       <select id="recCountry" aria-label="Country"><option value="all" data-i18n="recBoth"></option><option value="KR">Manhwa</option><option value="CN">Manhua</option></select>
       <select id="recSort" aria-label="Sort"><option value="match" data-i18n="recSortMatch"></option><option value="avg" data-i18n="recSortAvg"></option><option value="ch" data-i18n="recSortCh"></option></select>
       <button id="btnRecNew" data-i18n="recRefresh"></button>
+      <button id="btnIgList" type="button" data-i18n="igBtn"></button>
     </div>
+    <div id="igList" hidden></div>
     <p class="note" id="recNote"></p>
     <div id="recList"></div>
   </div>
@@ -389,6 +391,7 @@ const I18N={
   excl:"excluded",clearF:"✕ Clear filters",fHint:"Tap once to show · twice to exclude · three times to reset · Unread chapters narrows the selected statuses",
   recTab:"Recommendations",recMinLbl:"Chapters:",recAll:"any number",recBoth:"Manhwa + Manhua",recSortMatch:"Best match",recSortAvg:"AniList rating",recSortCh:"Most chapters",
   recRefresh:"↻ Update recommendations",recUpdating:"Updating recommendations … this takes 2–4 minutes",recUpdated:d=>`Updated ${d}. Recommendations come from AniList users who liked your series, weighted by your ratings.`,
+  igBtn:"📥 Instagram ideas",igTitle:"Shared from Instagram",igEmpty:"Nothing shared yet. In Instagram: Share → Manga merken.",igOpen:"Open ↗",igSt:{offen:"open",erledigt:"added",verworfen:"not interested"},
   recNone:"No recommendations yet. Tap “Update recommendations” – the first run takes a few minutes.",recEmpty:"Nothing matches these filters.",
   recFor:"Recommended for you",recSeq:"Sequels & side stories of your series",recWhy:t=>`because you liked ${t}`,recSeqWhy:(t,r)=>`${({SEQUEL:"sequel",PREQUEL:"prequel",SIDE_STORY:"side story",SPIN_OFF:"spin-off"})[r]||"related"} of ${t}`,
   recAdd:"+ Add to list",recNo:"Not interested",recAdded:t=>`${t} added`,recCh:(n,a)=>`${a?"approx. ":""}${n} ch.`,recDesc:"Description",
@@ -435,6 +438,7 @@ const I18N={
   excl:"ausgeschlossen",clearF:"✕ Filter zurücksetzen",fHint:"1× tippen: anzeigen · 2×: ausschließen · 3×: zurücksetzen · Offene Kapitel grenzt die gewählten Status ein",
   recTab:"Empfehlungen",recMinLbl:"Kapitel:",recAll:"beliebig viele",recBoth:"Manhwa + Manhua",recSortMatch:"Beste Übereinstimmung",recSortAvg:"AniList-Wertung",recSortCh:"Meiste Kapitel",
   recRefresh:"↻ Empfehlungen aktualisieren",recUpdating:"Aktualisiere Empfehlungen … das dauert 2–4 Minuten",recUpdated:d=>`Aktualisiert ${d}. Die Empfehlungen stammen von AniList-Nutzern, denen deine Serien gefallen haben, gewichtet nach deinen Bewertungen.`,
+  igBtn:"📥 Instagram-Ideen",igTitle:"Von Instagram geteilt",igEmpty:"Noch nichts geteilt. In Instagram: Teilen → Manga merken.",igOpen:"Öffnen ↗",igSt:{offen:"offen",erledigt:"hinzugefügt",verworfen:"kein Interesse"},
   recNone:"Noch keine Empfehlungen. Tippe auf „Empfehlungen aktualisieren“ – der erste Lauf dauert ein paar Minuten.",recEmpty:"Nichts passt zu diesen Filtern.",
   recFor:"Für dich empfohlen",recSeq:"Fortsetzungen & Ableger deiner Serien",recWhy:t=>`weil dir ${t} gefallen hat`,recSeqWhy:(t,r)=>`${({SEQUEL:"Fortsetzung",PREQUEL:"Vorgeschichte",SIDE_STORY:"Nebengeschichte",SPIN_OFF:"Ableger"})[r]||"verwandt"} von ${t}`,
   recAdd:"+ In meine Liste",recNo:"Kein Interesse",recAdded:t=>`${t} hinzugefügt`,recCh:(n,a)=>`${a?"ca. ":""}${n} Kap.`,recDesc:"Beschreibung",
@@ -974,6 +978,21 @@ function renderRecs(){
   $("recList").innerHTML=(main.length?`<h2 class="sec-h">${t("recFor")} <span class="note">${main.length}</span></h2><div class="recgrid">${main.map(recCard).join("")}</div>`:"")
     +(seq.length?`<h2 class="sec-h">${t("recSeq")} <span class="note">${seq.length}</span></h2><div class="recgrid">${seq.map(recCard).join("")}</div>`:"");
 }
+/* v2.8: list of links shared from Instagram (shortcut "Manga merken"), with date and status */
+$("btnIgList").onclick=async()=>{
+  const box=$("igList");
+  if(!box.hidden){box.hidden=true;return}
+  box.hidden=false; box.innerHTML=`<div class="list"><div class="empty-state">${t("loading")}</div></div>`;
+  let list=[];
+  try{list=await run("apiInboxAlle")||[]}catch(e){err(e)}
+  const st=t("igSt");
+  const fmt=d=>{const m=String(d||"").match(/^(\d{4})-(\d{2})-(\d{2})/);return m?(prefs.lang==="de"?`${m[3]}.${m[2]}.${m[1]}`:`${m[3]}/${m[2]}/${m[1]}`):esc(d||"")};
+  box.innerHTML=`<h2 class="sec-h">${t("igTitle")} <span class="note">${list.length}</span></h2>`+(list.length?`<div class="list">${list.map(x=>`<div class="igrow" style="display:flex;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line)">
+    <span class="note" style="min-width:84px">${fmt(x.date)}</span>
+    <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${x.title?esc(x.title):`<span class="note">–</span>`}</span>
+    <span class="note">${esc((st&&st[x.status])||x.status)}</span>
+    <a href="${escUrl(x.url)}" target="_blank" rel="noopener">${t("igOpen")}</a></div>`).join("")}</div>`:`<div class="list"><div class="empty-state">${t("igEmpty")}</div></div>`);
+};
 ["recMin","recCountry","recSort"].forEach(k=>$(k).addEventListener("change",()=>{prefs[k]=$(k).value;savePrefs();renderRecs()}));
 $("btnRecNew").onclick=()=>{$("btnRecNew").disabled=true;toast(t("recUpdating"));loadRecs(true)};
 $("recList").addEventListener("click",async e=>{
@@ -1278,7 +1297,7 @@ applyPage(); applyLang(); reload(false);
 <script>
 /* App version shown at the bottom of every page; raise it with every update and note it in the change log */
 (function(){
-  var APP_VERSION = 'v2.7.0', APP_DATE = '10.11.2026';
+  var APP_VERSION = 'v2.8.0', APP_DATE = '10.11.2026';
   var f = document.createElement('div');
   f.id = 'appVersion';
   f.textContent = 'Manga Tracker ' + APP_VERSION + ' \u00b7 ' + APP_DATE;
