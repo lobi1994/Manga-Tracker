@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Manga Tracker – Lesestand
 // @namespace    https://github.com/lobi1994/Manga-Tracker
-// @version      1.3.1
+// @version      1.4.0
 // @description  Zeigt auf der Kapitelübersicht, wo du aufgehört hast, speichert gelesene Kapitel automatisch und hilft, Manga-Ideen von Instagram in deinen Manga Tracker zu übernehmen.
 // @author       lobi1994
 // @match        *://*/*
@@ -398,6 +398,30 @@
           && /^https:\/\/[^\/]*(cdninstagram\.com|fbcdn\.net)\//i.test(src);
       }).map((i) => i.currentSrc || i.src);
     }
+    // Load the picture bytes (no CORS limits here) and turn them into a JPEG the Google text reader understands
+    function gmBlob(url) {
+      return new Promise((resolve, reject) => GM.xmlHttpRequest({
+        method: 'GET', url: url, responseType: 'blob',
+        onload: (r) => {
+          if (r.status !== 200 || !r.response) return reject(new Error('fetch ' + r.status));
+          resolve(r.response instanceof Blob ? r.response : new Blob([r.response]));
+        },
+        onerror: () => reject(new Error('net'))
+      }));
+    }
+    async function jpegB64(src) {
+      const bmp = await createImageBitmap(await gmBlob(src));
+      const sc = Math.max(0.3, Math.min(2, 1600 / Math.max(bmp.width, bmp.height)));
+      const c = document.createElement('canvas');
+      c.width = Math.round(bmp.width * sc); c.height = Math.round(bmp.height * sc);
+      const g = c.getContext('2d');
+      g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+      g.drawImage(bmp, 0, 0, c.width, c.height);
+      return c.toDataURL('image/jpeg', 0.88).split(',')[1];
+    }
+    function bildText(src) {
+      return jpegB64(src).then((b64) => call('apiBildTextDaten', [b64, src]), () => call('apiBildText', [src]));
+    }
     function readPictures(onNew) {
       if (ocrOff) return;
       visibleImages().forEach((src) => {
@@ -405,7 +429,7 @@
         if (ocrDone[k] || Object.keys(ocrDone).length >= 12) return;
         ocrDone[k] = 1; ocrBusy++;
         if (ocrInfo) ocrInfo.textContent = T('🔍 Reading picture …', '🔍 Bild wird gelesen …');
-        call('apiBildText', [src]).then((r) => {
+        bildText(src).then((r) => {
           ocrBusy--;
           if (r && r.error === 'drive') { ocrOff = true; if (ocrInfo) ocrInfo.textContent = T('Picture reading is not set up (Drive API).', 'Bilderkennung nicht eingerichtet (Drive API).'); return; }
           let note;

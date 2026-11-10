@@ -2062,6 +2062,28 @@ function apiBildText(key, imgUrl) {
   }
   if (blob.getBytes().length > 10 * 1024 * 1024) return { text: '', error: 'size' };
 
+  const o = ocrBlob_(blob);
+  if (o.error) return o;
+  const text = o.text;
+  if (text) { try { cache.put(ck, text, 6 * 3600); } catch (e) {} }
+  return { text: text, type: type, bytes: blob.getBytes().length };
+}
+
+/** Texterkennung für ein Bild als JPEG-Daten (base64). Das Overlay wandelt WebP-Bilder vorher im Browser um. */
+function apiBildTextDaten(key, b64, src) {
+  check_(key);
+  if (typeof Drive === 'undefined') return { text: '', error: 'drive' };
+  const cache = CacheService.getScriptCache();
+  const ck = src ? 'ocr:' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, String(src).replace(/[?#].*$/, ''))) : null;
+  if (ck) { const hit = cache.get(ck); if (hit) return { text: hit }; }
+  const bytes = Utilities.base64Decode(String(b64 || ''));
+  if (!bytes.length || bytes.length > 8 * 1024 * 1024) return { text: '', error: 'size' };
+  const o = ocrBlob_(Utilities.newBlob(bytes, 'image/jpeg', 'mt-ocr.jpg'));
+  if (o.text && ck) { try { cache.put(ck, o.text, 6 * 3600); } catch (e) {} }
+  return { text: o.text || '', error: o.error, type: 'image/jpeg', bytes: bytes.length };
+}
+
+function ocrBlob_(blob) {
   let id = null, text = '';
   try {
     if (Drive.Files.insert) {                        // Drive API v2
@@ -2075,6 +2097,5 @@ function apiBildText(key, imgUrl) {
   } finally {
     if (id) { try { DriveApp.getFileById(id).setTrashed(true); } catch (e) {} }
   }
-  if (text) { try { cache.put(ck, text, 6 * 3600); } catch (e) {} }
-  return { text: text, type: type, bytes: blob.getBytes().length };
+  return { text: text };
 }
