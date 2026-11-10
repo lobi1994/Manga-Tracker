@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Manga Tracker – Lesestand
 // @namespace    https://github.com/lobi1994/Manga-Tracker
-// @version      1.7.1
+// @version      1.7.2
 // @description  Zeigt auf der Kapitelübersicht, wo du aufgehört hast, speichert gelesene Kapitel automatisch und hilft, Manga-Ideen von Instagram in deinen Manga Tracker zu übernehmen.
 // @author       lobi1994
 // @match        *://*/*
@@ -430,15 +430,20 @@
           .map((l) => {
             if (/@|https?:|www\.|\.com\b/i.test(l) || /^(read|swipe|save|link in bio|read now|swipe left)\b/i.test(l)) return null;
             const c2 = clean(l);
-            return c2 && !isInfo(c2.replace(/[^\p{L}\d\s\/.:+★⭐-]/gu, '').trim()) ? c2 : null;
+            if (!c2 || isInfo(c2.replace(/[^\p{L}\d\s\/.:+★⭐-]/gu, '').trim())) return null;
+            // A line that had a chapter count or status removed is a complete title on its own: never join it with neighbours
+            const whole = c2.replace(/\s+/g, ' ').toLowerCase() !== l.replace(/\s+/g, ' ').trim().toLowerCase();
+            return whole ? { t: c2, whole: true } : c2;
           });
+        const joinable = (x) => typeof x === 'string';
         lines.forEach((l, i) => {
           if (!l) return;
+          if (typeof l === 'object') { add(l.t, 2.5); return; }
           const words = l.split(' ').length;
           if (words <= 9 && !(words === 1 && l.length < 5)) add(l, 1.5);
           const two = lines.slice(i, i + 2), three = lines.slice(i, i + 3);
-          if (two.length === 2 && two.every((x) => x && x.split(' ').length <= 4)) add(two.join(' '), 2);
-          if (three.length === 3 && three.every((x) => x && x.split(' ').length <= 3)) add(three.join(' '), 2.5);
+          if (two.length === 2 && two.every((x) => joinable(x) && x.split(' ').length <= 4)) add(two.join(' '), 2);
+          if (three.length === 3 && three.every((x) => joinable(x) && x.split(' ').length <= 3)) add(three.join(' '), 2.5);
         });
       });
       // Drop pieces of a title that is already suggested in full ("MOUNT HUA" next to "Return of the Mount Hua Sect")
