@@ -248,6 +248,7 @@ details.box summary{cursor:pointer;font-weight:700}
       <label class="note" for="recMin" data-i18n="recMinLbl"></label>
       <select id="recMin"><option value="0" data-i18n="recAll"></option><option value="10">≥ 10</option><option value="50">≥ 50</option><option value="100">≥ 100</option></select>
       <select id="recCountry" aria-label="Country"><option value="all" data-i18n="recBoth"></option><option value="KR">Manhwa</option><option value="CN">Manhua</option></select>
+      <select id="recGenre" aria-label="Genre"><option value="all" data-i18n="recGenreAll"></option></select>
       <select id="recSort" aria-label="Sort"><option value="match" data-i18n="recSortMatch"></option><option value="avg" data-i18n="recSortAvg"></option><option value="ch" data-i18n="recSortCh"></option></select>
       <button id="btnRecNew" data-i18n="recRefresh"></button>
       <button id="btnIgList" type="button" data-i18n="igBtn"></button>
@@ -391,6 +392,7 @@ const I18N={
   excl:"excluded",clearF:"✕ Clear filters",fHint:"Tap once to show · twice to exclude · three times to reset · Unread chapters narrows the selected statuses",
   recTab:"Recommendations",recMinLbl:"Chapters:",recAll:"any number",recBoth:"Manhwa + Manhua",recSortMatch:"Best match",recSortAvg:"AniList rating",recSortCh:"Most chapters",
   recRefresh:"↻ Update recommendations",recUpdating:"Updating recommendations … this takes 2–4 minutes",recUpdated:d=>`Updated ${d}. Recommendations come from AniList users who liked your series, weighted by your ratings.`,
+  recGenreAll:"All genres",recGenreMine:"Your categories",recGenreAl:"AniList genres",
   igBtn:"📥 Instagram ideas",igTitle:"Shared from Instagram",igEmpty:"Nothing shared yet. In Instagram: Share → Manga merken.",igOpen:"Open ↗",igSt:{offen:"open",erledigt:"added",verworfen:"not interested"},
   recNone:"No recommendations yet. Tap “Update recommendations” – the first run takes a few minutes.",recEmpty:"Nothing matches these filters.",
   recFor:"Recommended for you",recSeq:"Sequels & side stories of your series",recWhy:t=>`because you liked ${t}`,recSeqWhy:(t,r)=>`${({SEQUEL:"sequel",PREQUEL:"prequel",SIDE_STORY:"side story",SPIN_OFF:"spin-off"})[r]||"related"} of ${t}`,
@@ -438,6 +440,7 @@ const I18N={
   excl:"ausgeschlossen",clearF:"✕ Filter zurücksetzen",fHint:"1× tippen: anzeigen · 2×: ausschließen · 3×: zurücksetzen · Offene Kapitel grenzt die gewählten Status ein",
   recTab:"Empfehlungen",recMinLbl:"Kapitel:",recAll:"beliebig viele",recBoth:"Manhwa + Manhua",recSortMatch:"Beste Übereinstimmung",recSortAvg:"AniList-Wertung",recSortCh:"Meiste Kapitel",
   recRefresh:"↻ Empfehlungen aktualisieren",recUpdating:"Aktualisiere Empfehlungen … das dauert 2–4 Minuten",recUpdated:d=>`Aktualisiert ${d}. Die Empfehlungen stammen von AniList-Nutzern, denen deine Serien gefallen haben, gewichtet nach deinen Bewertungen.`,
+  recGenreAll:"Alle Genres",recGenreMine:"Deine Kategorien",recGenreAl:"AniList-Genres",
   igBtn:"📥 Instagram-Ideen",igTitle:"Von Instagram geteilt",igEmpty:"Noch nichts geteilt. In Instagram: Teilen → Manga merken.",igOpen:"Öffnen ↗",igSt:{offen:"offen",erledigt:"hinzugefügt",verworfen:"kein Interesse"},
   recNone:"Noch keine Empfehlungen. Tippe auf „Empfehlungen aktualisieren“ – der erste Lauf dauert ein paar Minuten.",recEmpty:"Nichts passt zu diesen Filtern.",
   recFor:"Für dich empfohlen",recSeq:"Fortsetzungen & Ableger deiner Serien",recWhy:t=>`weil dir ${t} gefallen hat`,recSeqWhy:(t,r)=>`${({SEQUEL:"Fortsetzung",PREQUEL:"Vorgeschichte",SIDE_STORY:"Nebengeschichte",SPIN_OFF:"Ableger"})[r]||"verwandt"} von ${t}`,
@@ -971,7 +974,19 @@ function renderRecs(){
   $("recNote").textContent=recLoading?t("recUpdating"):(recUpd?t("recUpdated",fmt(recUpd)):"");
   if(!recs.length){$("recList").innerHTML=`<div class="list"><div class="empty-state">${t("recNone")}</div></div>`;return}
   const min=Number(prefs.recMin||0), ctry=prefs.recCountry||"all", sort=prefs.recSort||"match";
-  const okR=r=>(!min||(r.chapters!=null&&r.chapters>=min))&&(ctry==="all"||(ctry==="KR"?r.country==="KR":r.country==="CN"||r.country==="TW"));
+  // v2.9: genre filter. Your own categories (e.g. Murim) count when a recommendation comes from your series in that category.
+  const catOf={}; items.forEach(i=>{catOf[String(i.title).toLowerCase()]=i.genres||[]});
+  const recCats=r=>{const src=r.kind==="sequel"?[String(r.why).split("|")[0]]:String(r.why||"").split(" | ");const s=new Set();src.forEach(x=>(catOf[String(x).trim().toLowerCase()]||[]).forEach(c=>s.add(c)));return s};
+  const mine=[...new Set(items.flatMap(i=>i.genres||[]))].sort((a,b)=>a.localeCompare(b));
+  const alg=[...new Set(recs.flatMap(r=>r.genres||[]))].sort((a,b)=>a.localeCompare(b));
+  let gen=prefs.recGenre||"all";
+  if(gen!=="all"&&!(gen.startsWith("al:")?alg.includes(gen.slice(3)):mine.includes(gen))) gen="all";
+  $("recGenre").innerHTML=`<option value="all">${t("recGenreAll")}</option>`
+    +(mine.length?`<optgroup label="${esc(t("recGenreMine"))}">${mine.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("")}</optgroup>`:"")
+    +(alg.length?`<optgroup label="${esc(t("recGenreAl"))}">${alg.map(g=>`<option value="al:${esc(g)}">${esc(g)}</option>`).join("")}</optgroup>`:"");
+  $("recGenre").value=gen;
+  const okG=r=>gen==="all"||(gen.startsWith("al:")?(r.genres||[]).includes(gen.slice(3)):recCats(r).has(gen));
+  const okR=r=>okG(r)&&(!min||(r.chapters!=null&&r.chapters>=min))&&(ctry==="all"||(ctry==="KR"?r.country==="KR":r.country==="CN"||r.country==="TW"));
   const srt=(a,b)=>sort==="avg"?(b.avg||0)-(a.avg||0):sort==="ch"?(b.chapters||0)-(a.chapters||0):(b.score||0)-(a.score||0);
   const main=recs.filter(r=>r.kind!=="sequel"&&okR(r)).sort(srt), seq=recs.filter(r=>r.kind==="sequel"&&okR(r)).sort(srt);
   if(!main.length&&!seq.length){$("recList").innerHTML=`<div class="list"><div class="empty-state">${t("recEmpty")}</div></div>`;return}
@@ -993,7 +1008,7 @@ $("btnIgList").onclick=async()=>{
     <span class="note">${esc((st&&st[x.status])||x.status)}</span>
     <a href="${escUrl(x.url)}" target="_blank" rel="noopener">${t("igOpen")}</a></div>`).join("")}</div>`:`<div class="list"><div class="empty-state">${t("igEmpty")}</div></div>`);
 };
-["recMin","recCountry","recSort"].forEach(k=>$(k).addEventListener("change",()=>{prefs[k]=$(k).value;savePrefs();renderRecs()}));
+["recMin","recCountry","recSort","recGenre"].forEach(k=>$(k).addEventListener("change",()=>{prefs[k]=$(k).value;savePrefs();renderRecs()}));
 $("btnRecNew").onclick=()=>{$("btnRecNew").disabled=true;toast(t("recUpdating"));loadRecs(true)};
 $("recList").addEventListener("click",async e=>{
   const b=e.target.closest("button[data-ra]"); if(!b)return; const card=b.closest("[data-rec]"); const id=card.dataset.rec; const r=(recs||[]).find(x=>x.id===id);
@@ -1297,7 +1312,7 @@ applyPage(); applyLang(); reload(false);
 <script>
 /* App version shown at the bottom of every page; raise it with every update and note it in the change log */
 (function(){
-  var APP_VERSION = 'v2.8.0', APP_DATE = '10.11.2026';
+  var APP_VERSION = 'v2.9.0', APP_DATE = '10.11.2026';
   var f = document.createElement('div');
   f.id = 'appVersion';
   f.textContent = 'Manga Tracker ' + APP_VERSION + ' \u00b7 ' + APP_DATE;
