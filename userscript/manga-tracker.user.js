@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Manga Tracker – Lesestand
 // @namespace    https://github.com/lobi1994/Manga-Tracker
-// @version      1.5.0
+// @version      1.5.1
 // @description  Zeigt auf der Kapitelübersicht, wo du aufgehört hast, speichert gelesene Kapitel automatisch und hilft, Manga-Ideen von Instagram in deinen Manga Tracker zu übernehmen.
 // @author       lobi1994
 // @match        *://*/*
@@ -564,8 +564,9 @@
 
     async function check() {
       const id = igId(location.href);
-      if ((id || '') === lastKey) return;
-      lastKey = id || '';
+      const key = id || location.pathname;                 // feed, profile, after login … each counts as a new page
+      if (key === lastKey) return;
+      lastKey = key;
       open = false;
       await loadInbox();
       if (!id) {
@@ -578,6 +579,8 @@
     }
     check();
     setInterval(check, 1000);
+    // Back in Safari after sharing something new in the Instagram app: look again
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && !open) { lastKey = '-'; check(); } });
   }
 
   run();
