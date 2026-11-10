@@ -20,12 +20,15 @@ function apiBildText(key, imgUrl) {
   const cache = CacheService.getScriptCache();
   const ck = 'ocr:' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, u.replace(/[?#].*$/, '')));
   const hit = cache.get(ck);
-  if (hit != null) return { text: hit };
+  if (hit) return { text: hit };
 
   const r = UrlFetchApp.fetch(u, { muteHttpExceptions: true, followRedirects: true, headers: { 'User-Agent': UA } });
   const type = String(r.getHeaders()['Content-Type'] || r.getHeaders()['content-type'] || '');
   if (r.getResponseCode() !== 200 || !/^image\//i.test(type)) return { text: '', error: 'fetch ' + r.getResponseCode() };
-  const blob = r.getBlob().setName('mt-ocr.jpg');
+  let blob = r.getBlob().setName('mt-ocr.jpg');
+  if (!/jpe?g|png|gif/i.test(type)) {                 // Drive reads JPG/PNG/GIF; Instagram may send WebP/HEIC
+    try { blob = blob.getAs('image/jpeg').setName('mt-ocr.jpg'); } catch (e) { return { text: '', error: 'format ' + type }; }
+  }
   if (blob.getBytes().length > 10 * 1024 * 1024) return { text: '', error: 'size' };
 
   let id = null, text = '';
@@ -41,6 +44,6 @@ function apiBildText(key, imgUrl) {
   } finally {
     if (id) { try { DriveApp.getFileById(id).setTrashed(true); } catch (e) {} }
   }
-  try { cache.put(ck, text, 6 * 3600); } catch (e) {}
-  return { text: text };
+  if (text) { try { cache.put(ck, text, 6 * 3600); } catch (e) {} }
+  return { text: text, type: type, bytes: blob.getBytes().length };
 }

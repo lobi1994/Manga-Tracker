@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Manga Tracker – Lesestand
 // @namespace    https://github.com/lobi1994/Manga-Tracker
-// @version      1.3.0
+// @version      1.3.1
 // @description  Zeigt auf der Kapitelübersicht, wo du aufgehört hast, speichert gelesene Kapitel automatisch und hilft, Manga-Ideen von Instagram in deinen Manga Tracker zu übernehmen.
 // @author       lobi1994
 // @match        *://*/*
@@ -408,8 +408,14 @@
         call('apiBildText', [src]).then((r) => {
           ocrBusy--;
           if (r && r.error === 'drive') { ocrOff = true; if (ocrInfo) ocrInfo.textContent = T('Picture reading is not set up (Drive API).', 'Bilderkennung nicht eingerichtet (Drive API).'); return; }
-          if (r && r.text) { ocrTexts.push(r.text); onNew(); }
-          if (ocrInfo && !ocrBusy) ocrInfo.textContent = T('Swipe to read the next picture.', 'Wisch weiter, um das nächste Bild zu lesen.');
+          let note;
+          if (r && r.text) {
+            ocrTexts.push(r.text); onNew();
+            const first = r.text.replace(/\s+/g, ' ').slice(0, 90);
+            note = T('Picture read ✓: ', 'Bild gelesen ✓: ') + '„' + first + (r.text.length > 90 ? ' …' : '') + '“';
+          } else if (r && r.error) note = T('Picture not readable: ', 'Bild nicht lesbar: ') + r.error;
+          else note = T('No text found on this picture', 'Kein Text auf diesem Bild erkannt') + (r && r.type ? ' (' + r.type + ', ' + Math.round((r.bytes || 0) / 1024) + ' KB)' : '');
+          if (ocrInfo) ocrInfo.textContent = note + T(' · Swipe for the next picture.', ' · Wisch weiter für das nächste Bild.');
         }, () => { ocrBusy--; if (ocrInfo && !ocrBusy) ocrInfo.textContent = ''; });
       });
     }
