@@ -89,6 +89,25 @@ Benutzen: Kapitel in Safari lesen → **Teilen → Manga gelesen**.
 
 Benutzen: Übersichtsseite einer Serie in Safari öffnen (bei manchen Seiten vorher auf den Reiter mit der Kapitelliste tippen) → **Teilen → Kapitel aktualisieren**.
 
+## 6b. Lesestand-Overlay in Safari (optional)
+
+Damit musst du nicht mehr auf „Manga gelesen“ tippen:
+
+- **Auf der Kapitelübersicht** einer Serie siehst du unten „gelesen bis X“, dein Kapitel ist markiert, und ein Knopf bringt dich zum nächsten Kapitel.
+- **Auf einer Kapitelseite** wird das Kapitel automatisch gespeichert, sobald du am Ende bist (mindestens 15 Sekunden auf der Seite) oder auf „Nächstes Kapitel“ tippst. Danach erscheint eine Meldung mit **Rückgängig**.
+- **Ältere oder schon gelesene Kapitel** ändern nichts.
+- **Serien, die noch nicht in deiner Liste sind**, werden nur angelegt, wenn du auf **Hinzufügen** tippst.
+- Das Overlay läuft nur auf Leseseiten, die schon in deiner Liste vorkommen. Eine neue Seite kommt dazu, sobald du dort einmal „Manga gelesen“ benutzt.
+
+Einrichten (ca. 5 Minuten):
+
+1. Die kostenlose App **Userscripts** aus dem App Store laden und öffnen. Einen Ordner für die Skripte auswählen (z. B. „Auf meinem iPhone“).
+2. **Einstellungen → Apps → Safari → Erweiterungen → Userscripts** einschalten und bei *Andere Websites* **Erlauben** wählen.
+3. In Safari [das Skript](https://raw.githubusercontent.com/lobi1994/Manga-Tracker/main/userscript/manga-tracker.user.js) öffnen. Oben in der Adressleiste auf das Puzzle-Symbol (oder **ᴀA**) → **Userscripts** → **Installieren**.
+4. In Safari (nicht in der Home-Bildschirm-App) einmal [lobi1994.github.io/Manga-Tracker](https://lobi1994.github.io/Manga-Tracker/) öffnen. Nach ein paar Sekunden erscheint **„Lesestand-Overlay verbunden ✓“**. Falls die Seite nach dem Einrichtungs-Link fragt: deinen Link aus **App-Link anzeigen** einfügen.
+
+Voraussetzung: die Skript-Version 2.5 oder neuer (siehe „7. Updates“).
+
 ## 7. Updates
 
 Die App-Oberfläche aktualisiert sich von selbst. Wenn es eine neue Version des Skripts gibt (siehe Versionsnummer unten in der App und die [Änderungen auf GitHub](https://github.com/lobi1994/Manga-Tracker/commits/main)):
