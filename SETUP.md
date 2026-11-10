@@ -91,6 +91,25 @@ How to use: read a chapter in Safari → **Share → Manga gelesen**.
 
 How to use: open a series' overview page in Safari (on some sites, tap the tab with the chapter list first) → **Share → Kapitel aktualisieren**.
 
+## 6b. Reading overlay in Safari (optional)
+
+With this you no longer need to tap "Manga gelesen":
+
+- **On a series' chapter overview** you see "read up to X" at the bottom, your chapter is highlighted, and a button takes you to the next chapter.
+- **On a chapter page** the chapter is saved automatically once you reach the end (at least 15 seconds on the page) or tap "next chapter". A message with **Undo** appears.
+- **Older or already read chapters** change nothing.
+- **Series that are not in your list yet** are only added if you tap **Add**.
+- The overlay only runs on reading sites that already appear in your list. A new site is added once you use "Manga gelesen" there.
+
+Setup (about 5 minutes):
+
+1. Get the free app **Userscripts** from the App Store and open it. Pick a folder for the scripts (e.g. "On My iPhone").
+2. **Settings → Apps → Safari → Extensions → Userscripts**: turn it on and set *Other Websites* to **Allow**.
+3. In Safari, open [the script](https://raw.githubusercontent.com/lobi1994/Manga-Tracker/main/userscript/manga-tracker.user.js). Tap the puzzle icon (or **ᴀA**) in the address bar → **Userscripts** → **Install**.
+4. In Safari (not the home screen app), open [lobi1994.github.io/Manga-Tracker](https://lobi1994.github.io/Manga-Tracker/) once. After a few seconds **"Reading overlay connected ✓"** appears. If the page asks for the setup link, paste yours from **App-Link anzeigen**.
+
+Requires script version 2.5 or newer (see "7. Updates").
+
 ## 7. Updates
 
 The app interface updates itself. When there is a new version of the script (see the version number at the bottom of the app and the [changes on GitHub](https://github.com/lobi1994/Manga-Tracker/commits/main)):
