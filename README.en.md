@@ -23,7 +23,7 @@ A small app to keep track of manga, manhwa and manhua: reading progress, ratings
 | `google/MangaTracker-Vorlage.gs` | The complete script in one file, to paste into a new sheet |
 | `google/*.gs`, `google/Index.html` | The individual source files |
 | `kurzbefehle/kapitel-aktualisieren.js` | JavaScript for the "Kapitel aktualisieren" (update chapter) shortcut |
-| `userscript/manga-tracker.user.js` | Reading overlay for Safari ("Userscripts" app): shows where you stopped and saves chapters automatically |
+| `userscript/manga-tracker.user.js` | Overlay for Safari ("Userscripts" app): shows where you stopped, saves chapters automatically and adds manga ideas from Instagram |
 | `icons/` | App icons |
 | `tools/build.py`, `tools/setup.html` | Build `index.html` and the template from the source files |
 

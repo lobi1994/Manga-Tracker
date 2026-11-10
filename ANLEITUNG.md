@@ -108,6 +108,33 @@ Einrichten (ca. 5 Minuten):
 
 Voraussetzung: die Skript-Version 2.5 oder neuer (siehe „7. Updates“).
 
+## 6c. Manga-Ideen von Instagram (optional)
+
+Reels und Posts mit Manga-Tipps sammeln und später mit einem Tipp in die Liste übernehmen. Kostenlos, ohne fremde Dienste.
+
+**Kurzbefehl „Manga merken“** (einmal anlegen, ca. 5 Minuten):
+
+1. Kurzbefehle-App → **+** → Name `Manga merken`. Unter ⓘ **Im Share-Sheet anzeigen** einschalten, Eingabe: **URLs** und **Text**.
+2. Aktion **Inhalte von URL abrufen**. URL: dein **App-Link** (endet auf `/exec`, siehe **App-Link anzeigen**).
+3. In dieser Aktion auf **Mehr anzeigen**: Methode **POST**, Anfragetext **Formular**. Drei Felder (alle Typ Text) hinzufügen:
+   - `fn` → `apiInboxNeu`
+   - `key` → dein **Schlüssel**
+   - `url` → Variable **Kurzbefehleingabe**
+4. Aktion **Mitteilung anzeigen** → **Inhalte von URL**.
+
+Benutzen: In Instagram bei einem Reel oder Post auf **Teilen** (Papierflieger) → **Teilen über …** / **Mehr** → **Manga merken**. Es erscheint „Gemerkt ✓ (3 offen)“. Die Links landen im Blatt **Inbox** deiner Tabelle.
+
+**Auswerten** (braucht das Overlay aus 6b, Version 1.2 oder neuer):
+
+1. In **Safari** [instagram.com](https://www.instagram.com) öffnen und einloggen. Unten steht „📥 3 Manga-Ideen gemerkt“ → **Öffnen ›**.
+2. Das Overlay schlägt Titel aus Beschreibung und Bildtexten vor. Bei Bilderserien beim Wischen kommen neue dazu. Auf den passenden Titel tippen oder ihn eintippen.
+3. Treffer mit Kapitelzahl erscheinen → **Hinzufügen**. Der Manga kommt in deine Liste (mit Notiz „Idee von Instagram“), der Link ist erledigt.
+4. **Nächste Idee ›**, **Später ›** oder **Kein Interesse**.
+
+Auf jedem anderen Instagram-Post in Safari gibt es unten den Knopf **Manga suchen**.
+
+Kapitelzahlen kommen von MangaUpdates (sonst AniList). Steht der Titel nur im Ton eines Videos, findet das Overlay ihn nicht – dann einfach eintippen.
+
 ## 7. Updates
 
 Die App-Oberfläche aktualisiert sich von selbst. Wenn es eine neue Version des Skripts gibt (siehe Versionsnummer unten in der App und die [Änderungen auf GitHub](https://github.com/lobi1994/Manga-Tracker/commits/main)):

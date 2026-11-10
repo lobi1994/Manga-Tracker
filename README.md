@@ -23,7 +23,7 @@ Eine kleine App, um Manga, Manhwa und Manhua zu verfolgen: Lesestand, Bewertunge
 | `google/MangaTracker-Vorlage.gs` | Das komplette Skript in einer Datei – zum Einfügen in eine neue Tabelle |
 | `google/*.gs`, `google/Index.html` | Die einzelnen Quelldateien |
 | `kurzbefehle/kapitel-aktualisieren.js` | JavaScript für den Kurzbefehl „Kapitel aktualisieren“ |
-| `userscript/manga-tracker.user.js` | Lesestand-Overlay für Safari (App „Userscripts“): zeigt, wo du warst, und speichert Kapitel automatisch |
+| `userscript/manga-tracker.user.js` | Overlay für Safari (App „Userscripts“): zeigt, wo du warst, speichert Kapitel automatisch und übernimmt Manga-Ideen von Instagram |
 | `icons/` | App-Symbole |
 | `tools/build.py`, `tools/setup.html` | Baut `index.html` und die Vorlage aus den Quelldateien |
 

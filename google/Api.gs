@@ -18,6 +18,19 @@ function schluessel_() {
 
 function doPost(e) {
   let out;
+  // Kurzbefehle können als Formular senden (fn, key, url): Antwort dann als lesbarer Text
+  const p = (e && e.parameter) || {};
+  if (p.fn && p.key) {
+    let txt;
+    try {
+      const k = schluessel_();
+      if (!k || p.key !== k) throw new Error('Kein Zugriff');
+      if (!/^api[A-Za-z]+$/.test(p.fn) || typeof globalThis[p.fn] !== 'function') throw new Error('Unbekannte Funktion: ' + p.fn);
+      const r = globalThis[p.fn].apply(null, [p.key].concat(p.url != null ? [p.url] : []));
+      txt = typeof r === 'string' ? r : JSON.stringify(r);
+    } catch (err) { txt = String((err && err.message) || err); }
+    return ContentService.createTextOutput(txt).setMimeType(ContentService.MimeType.TEXT);
+  }
   try {
     const body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     const fn = String(body.fn || '');

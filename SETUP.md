@@ -110,6 +110,33 @@ Setup (about 5 minutes):
 
 Requires script version 2.5 or newer (see "7. Updates").
 
+## 6c. Manga ideas from Instagram (optional)
+
+Collect reels and posts with manga tips and add them to your list later with one tap. Free, no outside services.
+
+**Shortcut "Manga merken"** (create once, about 5 minutes):
+
+1. Shortcuts app → **+** → name `Manga merken`. Under ⓘ turn on **Show in Share Sheet**, input: **URLs** and **Text**.
+2. Action **Get Contents of URL**. URL: your **app link** (ends in `/exec`, see **App-Link anzeigen**).
+3. In that action tap **Show More**: Method **POST**, Request Body **Form**. Add three fields (all type Text):
+   - `fn` → `apiInboxNeu`
+   - `key` → your **key**
+   - `url` → variable **Shortcut Input**
+4. Action **Show Notification** → **Contents of URL**.
+
+How to use: in Instagram, on a reel or post tap **Share** (paper plane) → **Share to …** / **More** → **Manga merken**. "Saved ✓ (3 open)" appears. The links go to the **Inbox** sheet of your spreadsheet.
+
+**Going through them** (needs the overlay from 6b, version 1.2 or newer):
+
+1. In **Safari**, open [instagram.com](https://www.instagram.com) and log in. At the bottom: "📥 3 manga ideas saved" → **Open ›**.
+2. The overlay suggests titles from the caption and picture texts; in picture series more appear as you swipe. Tap the right title or type it.
+3. Results with chapter counts appear → **Add**. The manga goes into your list (note "Idee von Instagram"), the link is done.
+4. **Next idea ›**, **Skip ›** or **Not interested**.
+
+On any other Instagram post in Safari there is a **Find manga** button at the bottom.
+
+Chapter counts come from MangaUpdates (otherwise AniList). If the title is only spoken in a video, the overlay cannot find it – just type it in.
+
 ## 7. Updates
 
 The app interface updates itself. When there is a new version of the script (see the version number at the bottom of the app and the [changes on GitHub](https://github.com/lobi1994/Manga-Tracker/commits/main)):

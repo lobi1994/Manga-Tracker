@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Manga Tracker – Lesestand
 // @namespace    https://github.com/lobi1994/Manga-Tracker
-// @version      1.1.1
-// @description  Zeigt auf der Kapitelübersicht, wo du aufgehört hast, und speichert gelesene Kapitel automatisch in deinem Manga Tracker.
+// @version      1.2.0
+// @description  Zeigt auf der Kapitelübersicht, wo du aufgehört hast, speichert gelesene Kapitel automatisch und hilft, Manga-Ideen von Instagram in deinen Manga Tracker zu übernehmen.
 // @author       lobi1994
 // @match        *://*/*
 // @grant        GM.xmlHttpRequest
@@ -24,6 +24,9 @@
  *    of the chapter (or tap the next chapter). A message with "Undo" appears.
  *  - Chapter page, older or same chapter: nothing is changed.
  *  - Series not in your list: asks once whether to add it.
+ *
+ * On instagram.com (Safari, logged in): shows your saved manga ideas (shortcut "Manga merken"),
+ * suggests titles from the caption and picture texts, shows the chapter count and adds a series with one tap.
  */
 (async function () {
   'use strict';
@@ -73,7 +76,7 @@
 
   const cfg = await GM.getValue('cfg', null);
   if (!cfg) return;
-  if (/(^|\.)(google\.com|googleusercontent\.com|github\.com|instagram\.com|youtube\.com)$/.test(host)) return;
+  if (/(^|\.)(google\.com|googleusercontent\.com|github\.com|youtube\.com)$/.test(host)) return;
 
   function call(fn, args) { return callWith(cfg, fn, args); }
   function callWith(cfg, fn, args) {
@@ -93,6 +96,8 @@
       });
     });
   }
+
+  if (host === 'instagram.com' || host.endsWith('.instagram.com')) { instagram(); return; }
 
   /* ------------------------------------------- only on known reading sites */
   let hc = await GM.getValue('hosts', null);
@@ -122,6 +127,11 @@
       'button{font:600 14px -apple-system,system-ui,sans-serif;border:0;border-radius:10px;padding:8px 12px;' +
       'background:' + ACCENT + ';color:#fff;cursor:pointer}' +
       'button.s{background:rgba(255,255,255,.14)}button.x{background:none;padding:6px 8px;opacity:.7}' +
+      '.p.big{max-height:62vh;overflow:auto;align-items:flex-start}.w{width:100%}.hd{flex:1;font-weight:700}' +
+      '.chips{display:flex;flex-wrap:wrap;gap:6px;width:100%;margin:4px 0}.chips button{background:rgba(255,255,255,.14);font-weight:500;padding:6px 10px}' +
+      '.q{display:flex;gap:6px;width:100%}input{flex:1;min-width:0;font:15px -apple-system,system-ui,sans-serif;padding:8px 10px;border-radius:10px;border:0;background:#fff;color:#111}' +
+      '.r{display:flex;gap:10px;align-items:center;width:100%;padding:8px 0;border-top:1px solid rgba(255,255,255,.12)}' +
+      '.r img{width:44px;height:62px;object-fit:cover;border-radius:6px;background:#333;flex:none}.r .i{flex:1;min-width:0}.m{opacity:.75;font-size:13px}.ok{color:#8fe3a1;font-size:13px}' +
       '</style><div class="p h"></div>';
     document.documentElement.appendChild(hostEl);
     box = { host: hostEl, el: sh.querySelector('.p'), timer: 0 };
@@ -132,6 +142,7 @@
   function pill(html, buttons, ms) {
     const b = root();
     clearTimeout(b.timer);
+    b.el.classList.remove('big');
     b.el.innerHTML = '<div class="t">' + html + '</div>';
     (buttons || []).forEach((btn) => {
       const e = document.createElement('button');
@@ -147,6 +158,17 @@
     if (ms) b.timer = setTimeout(hide, ms);
   }
   function hide() { if (box) box.el.classList.add('h'); }
+  /** Larger panel: build(el) fills it. */
+  function card(build) {
+    const b = root();
+    clearTimeout(b.timer);
+    b.el.innerHTML = '';
+    b.el.classList.add('big');
+    build(b.el);
+    requestAnimationFrame(() => b.el.classList.remove('h'));
+  }
+  function mk(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function btn(label, cls, onClick) { const e = mk('button', cls, label); e.onclick = (ev) => { ev.stopPropagation(); onClick(e); }; return e; }
   /** Like pill, but waits until an Undo message is gone. */
   function softPill(html, buttons, ms) {
     const wait = undoUntil - Date.now();
@@ -304,6 +326,145 @@
     };
     document.addEventListener('click', onClick, true);
     cleanup.push(() => document.removeEventListener('click', onClick, true));
+  }
+
+
+  /* =============================================================== Instagram */
+  function instagram() {
+    const igId = (u) => { const m = String(u || '').match(/instagram\.com\/(?:[A-Za-z0-9_.]+\/)?(?:p|reels?|tv)\/([A-Za-z0-9_-]+)/i); return m ? m[1] : null; };
+    let inbox = [], lastKey = '-', open = false, searched = false, chipBox = null;
+    const loadInbox = () => call('apiInbox').then((l) => { inbox = l || []; return inbox; }, () => inbox);
+    const nextOf = (id) => inbox.find((x) => x.id !== id);
+
+    // Texts on the page: preview text, caption, picture descriptions (Instagram often puts the text on the picture there)
+    function texts() {
+      const out = [];
+      ['og:description', 'og:title'].forEach((p) => { const m = document.querySelector('meta[property="' + p + '"]'); if (m && m.content) out.push(m.content); });
+      const scope = document.querySelector('main') || document.body;
+      scope.querySelectorAll('h1').forEach((h) => out.push(h.innerText || ''));
+      scope.querySelectorAll('img[alt]').forEach((i) => { if (i.getBoundingClientRect().width > 150 && i.alt.length > 12) out.push(i.alt); });
+      return out;
+    }
+    const NOISE = /^(manhwa|manga|manhua|webtoon|webtoons|murim|action|fantasy|romance|comedy|drama|isekai|anime|otaku|follow|like|comment|share|save|link in bio|read|reading|recommendation|recommendations|part \d+|new|top \d+)s?$/i;
+    const TAGNOISE = /manhwa|manga|manhua|webtoon|anime|otaku|recommend|reels?|fyp|foryou|explore|viral|trend|edit|amv|follow/i;
+    function candidates(list) {
+      const c = new Map();
+      const add = (t, s) => {
+        t = String(t || '').replace(/[\u{1F000}-\u{1FFFF}☀-➿️]/gu, '')
+          .replace(/^[\s\d.\-–—:)•*#"“„'«»]+|[\s"“”'»«.,!?:;(\-–—]+$/g, '').replace(/\s+/g, ' ').trim()
+          .replace(/^(?:name|title|titel|manhwa|manga|manhua|webtoon)\s*[:\-–]\s*/i, '');
+        if (t.length < 3 || t.length > 70 || NOISE.test(t) || /^\d+$/.test(t)) return;
+        if (/\b(likes?|comments?|gefällt|kommentare)\b/i.test(t) && /\d/.test(t)) return;
+        if (/\b(need to read|must read|you should|top \d+|best \w+ (?:manhwa|manga)|recommend|empfehl|part \d+)\b/i.test(t)) return;
+        const k = t.toLowerCase();
+        const o = c.get(k); if (o) o.s += s; else c.set(k, { t: t, s: s });
+      };
+      list.forEach((raw) => {
+        if (!raw) return;
+        let x = String(raw);
+        const q = x.match(/:\s*["“]([\s\S]*)["”]\s*\.?\s*$/); if (q) x = q[1];                  // '123 likes … : "caption"'
+        (x.match(/[„"“]([^"”“„]{3,80})["”“]/g) || []).forEach((m) => add(m.slice(1, -1), 3));   // quoted text on pictures
+        (x.match(/(?:name|title|titel|manhwa|manga|manhua|webtoon)\s*[:\-–]\s*([^\n#|"“”„]{3,70})/ig) || []).forEach((m) => add(m.replace(/^[^:\-–]+[:\-–]\s*/, ''), 5));
+        x.split(/\n|\s[|•·]\s|(?:^|\s)\d{1,2}[.)]\s/).forEach((l) => {
+          l = l.replace(/#\S+/g, '').replace(/@\S+/g, '').trim();
+          if (l && l.split(' ').length <= 9) add(l, 1);
+        });
+        (x.match(/#[\p{L}\d_]{4,40}/gu) || []).forEach((h) => {
+          if (TAGNOISE.test(h)) return;
+          add(h.slice(1).replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2'), 0.5);
+        });
+      });
+      return [...c.values()].sort((a, b) => b.s - a.s).slice(0, 10).map((o) => o.t);
+    }
+
+    function fillChips(onPick) {
+      if (!chipBox) return;
+      const list = candidates(texts());
+      chipBox.innerHTML = '';
+      if (!list.length) chipBox.appendChild(mk('div', 'm', T('No title found in the text – type it in, or swipe to the next picture.', 'Kein Titel im Text gefunden – tipp ihn ein oder wisch zum nächsten Bild.')));
+      list.forEach((t) => chipBox.appendChild(btn(t, '', () => onPick(t))));
+    }
+
+    function showPanel(id) {
+      open = true; searched = false;
+      const fromInbox = inbox.some((x) => x.id === id);
+      card((el) => {
+        const head = mk('div', 'hd', '📚 ' + T('Which manga is it? Tap the title:', 'Welcher Manga? Tipp auf den Titel:'));
+        el.appendChild(head);
+        el.appendChild(btn('✕', 'x', () => { open = false; hide(); }));
+        chipBox = mk('div', 'chips');
+        el.appendChild(chipBox);
+        const q = mk('div', 'q');
+        const inp = mk('input'); inp.placeholder = T('Type a title …', 'Titel eintippen …'); inp.type = 'search';
+        const res = mk('div', 'w');
+        const search = (t) => {
+          t = String(t || '').trim(); if (!t) return;
+          searched = true; inp.value = t;
+          res.innerHTML = ''; res.appendChild(mk('div', 'm', T('Searching …', 'Suche …')));
+          call('apiMangaSuche', [t]).then((list) => {
+            res.innerHTML = '';
+            if (!list || !list.length) { res.appendChild(mk('div', 'm', T('Nothing found. Try another spelling.', 'Nichts gefunden. Versuch eine andere Schreibweise.'))); return; }
+            list.forEach((r) => {
+              const row = mk('div', 'r');
+              const im = mk('img'); if (r.image) im.src = r.image; im.referrerPolicy = 'no-referrer'; row.appendChild(im);
+              const info = mk('div', 'i');
+              info.appendChild(mk('div', '', r.title));
+              const ch = r.latest ? (Math.floor(r.latest) + T(' chapters', ' Kapitel')) : T('chapters unknown', 'Kapitel unbekannt');
+              info.appendChild(mk('div', 'm', [r.type, r.year, ch, r.completed ? T('completed', 'abgeschlossen') : ''].filter(Boolean).join(' · ')));
+              row.appendChild(info);
+              if (r.inList) row.appendChild(mk('div', 'ok', T('✓ in your list', '✓ in deiner Liste')));
+              else row.appendChild(btn(T('Add', 'Hinzufügen'), '', (b) => {
+                b.disabled = true; b.textContent = '…';
+                call('apiInboxHinzufuegen', [r, location.href]).then((out) => {
+                  inbox = inbox.filter((x) => x.id !== id);
+                  b.replaceWith(mk('div', 'ok', T('✓ added', '✓ hinzugefügt')));
+                  addNext();
+                }, () => { b.disabled = false; b.textContent = T('Add', 'Hinzufügen'); });
+              }));
+              res.appendChild(row);
+            });
+          }, () => { res.innerHTML = ''; res.appendChild(mk('div', 'm', T('Search failed.', 'Suche fehlgeschlagen.'))); });
+        };
+        inp.onkeydown = (ev) => { if (ev.key === 'Enter') search(inp.value); };
+        q.appendChild(inp); q.appendChild(btn(T('Search', 'Suchen'), '', () => search(inp.value)));
+        el.appendChild(q);
+        el.appendChild(res);
+        const foot = mk('div', 'chips');
+        const addNext = () => {
+          foot.innerHTML = '';
+          const nx = nextOf(id);
+          if (nx) foot.appendChild(btn(T('Next idea › (', 'Nächste Idee › (') + (inbox.filter((x) => x.id !== id).length) + ')', '', () => { location.href = nx.url; }));
+        };
+        if (fromInbox) foot.appendChild(btn(T('Not interested', 'Kein Interesse'), 's', () => {
+          call('apiInboxStatus', [location.href, 'verworfen', '']).then((l) => { inbox = l || []; const nx = inbox[0]; if (nx) location.href = nx.url; else pill(T('Inbox empty ✓', 'Inbox leer ✓'), [], 3000); });
+        }));
+        if (fromInbox) { const nx = nextOf(id); if (nx) foot.appendChild(btn(T('Skip ›', 'Später ›'), 's', () => { location.href = nx.url; })); }
+        el.appendChild(foot);
+        fillChips(search);
+        // Swiping through a picture series loads new pictures: update the suggestions
+        let t = 0;
+        const mo = new MutationObserver(() => { if (!open || searched) return; clearTimeout(t); t = setTimeout(() => fillChips(search), 1200); });
+        mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['alt'] });
+        setTimeout(() => mo.disconnect(), 10 * 60 * 1000);
+      });
+    }
+
+    async function check() {
+      const id = igId(location.href);
+      if ((id || '') === lastKey) return;
+      lastKey = id || '';
+      open = false;
+      await loadInbox();
+      if (!id) {
+        if (inbox.length) pill('📥 <b>' + inbox.length + '</b> ' + T('manga ideas saved', 'Manga-Ideen gemerkt'), [{ label: T('Open ›', 'Öffnen ›'), onClick: () => { location.href = inbox[0].url; } }], 0);
+        else hide();
+        return;
+      }
+      if (inbox.some((x) => x.id === id)) setTimeout(() => showPanel(id), 2000);   // from the inbox: start right away
+      else pill('📚', [{ label: T('Find manga', 'Manga suchen'), style: 's', onClick: () => showPanel(id) }], 0);
+    }
+    check();
+    setInterval(check, 1000);
   }
 
   run();
