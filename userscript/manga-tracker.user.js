@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Manga Tracker – Lesestand
 // @namespace    https://github.com/lobi1994/Manga-Tracker
-// @version      1.7.0
+// @version      1.7.1
 // @description  Zeigt auf der Kapitelübersicht, wo du aufgehört hast, speichert gelesene Kapitel automatisch und hilft, Manga-Ideen von Instagram in deinen Manga Tracker zu übernehmen.
 // @author       lobi1994
 // @match        *://*/*
@@ -385,6 +385,7 @@
       t = t.replace(/\b(?:follow|folge|folgt)\s+(?:me\s+|us\s+|mir\s+|uns\s+)?(?:for|für)\s+(?:more|mehr)\b[^\n]*/gi, ' ')
         .replace(/\b(?:follow|folge|folgt)\s+@?\S+/gi, ' ')
         .replace(/\b(?:beitrag|beiträge|post|posts|reel|reels)\b/gi, ' ')
+        .replace(/\b(?:end\s+of\s+(?:the\s+)?season(?:\s*\d+)?|season\s*\d*\s*(?:end|finale|ended|break)|staffel\s*\d*\s*(?:ende|finale)|ende\s+der\s+staffel|season\s*\d+)\b/gi, ' ')
         .replace(new RegExp('\\b\\d+\\+?\\s*(?:' + CH + ')\\b\\.?', 'gi'), ' ')                // 308 Chapters
         .replace(new RegExp('\\b(?:' + CH + ')\\.?\\s*[:#]?\\s*\\d+(?:\\.\\d+)?\\+?', 'gi'), ' ') // Chapter 308, Ch. 120+
         .replace(/[(\[]\s*[)\]]/g, ' ');
