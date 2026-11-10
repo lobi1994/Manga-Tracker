@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Manga Tracker – Lesestand
 // @namespace    https://github.com/lobi1994/Manga-Tracker
-// @version      1.8.1
+// @version      1.9.0
 // @description  Zeigt auf der Kapitelübersicht, wo du aufgehört hast, speichert gelesene Kapitel automatisch und hilft, Manga-Ideen von Instagram in deinen Manga Tracker zu übernehmen.
 // @author       lobi1994
 // @match        *://*/*
@@ -336,6 +336,7 @@
     let inbox = [], lastKey = '-', open = false, searched = false, chipBox = null;
     let ocrTexts = [], ocrDone = {}, ocrBusy = 0, ocrOff = false, ocrInfo = null;
     let blocked = [];                                        // suggestions you removed (long press / swipe)
+    let refreshHidden = () => {};
     GM.getValue('igBlock', []).then((b) => { blocked = b || []; });
     const loadInbox = () => call('apiInbox').then((l) => { inbox = l || []; return inbox; }, () => inbox);
     const nextOf = (id) => inbox.find((x) => x.id !== id);
@@ -546,6 +547,7 @@
       const k = t.toLowerCase();
       if (blocked.indexOf(k) < 0) { blocked.push(k); blocked = blocked.slice(-400); GM.setValue('igBlock', blocked); }
       b.remove();
+      refreshHidden();
       if (!ocrInfo) return;
       ocrInfo.textContent = '„' + t + '“ ' + T('hidden', 'ausgeblendet') + ' ';
       ocrInfo.appendChild(btn(T('Undo', 'Rückgängig'), 's', () => {
@@ -559,7 +561,7 @@
       let timer = 0, x0 = 0, y0 = 0, dx = 0, swiping = false, used = false;
       b.addEventListener('touchstart', (e) => {
         const q = e.touches[0]; x0 = q.clientX; y0 = q.clientY; dx = 0; swiping = false; used = false;
-        timer = setTimeout(() => { used = true; removeChip(t, b, onPick); }, 600);
+        timer = setTimeout(() => { used = true; removeChip(t, b, onPick); }, 800);
       }, { passive: true });
       b.addEventListener('touchmove', (e) => {
         const q = e.touches[0]; dx = q.clientX - x0;
@@ -651,6 +653,24 @@
         }));
         if (fromInbox) { const nx = nextOf(id); if (nx) foot.appendChild(btn(T('Skip ›', 'Später ›'), 's', () => { location.href = nx.url; })); }
         el.appendChild(foot);
+        // Hidden suggestions: show them again (one by one or all)
+        const hid = mk('div', 'chips');
+        const showHidden = () => {
+          hid.innerHTML = '';
+          if (!blocked.length) return;
+          const open2 = hid.dataset.open === '1';
+          hid.appendChild(btn((open2 ? '▾ ' : '▸ ') + T('Hidden suggestions', 'Ausgeblendete Vorschläge') + ' (' + blocked.length + ')', 's', () => { hid.dataset.open = open2 ? '0' : '1'; showHidden(); }));
+          if (!open2) return;
+          blocked.slice().reverse().forEach((k) => hid.appendChild(btn('↺ ' + k, '', () => {
+            blocked = blocked.filter((x) => x !== k); GM.setValue('igBlock', blocked); showHidden(); fillChips(search);
+          })));
+          hid.appendChild(btn(T('Show all again', 'Alle wieder anzeigen'), 's', () => {
+            blocked = []; GM.setValue('igBlock', blocked); showHidden(); fillChips(search);
+          }));
+        };
+        el.appendChild(hid);
+        showHidden();
+        refreshHidden = showHidden;
         fillChips(search);
         readPictures(() => { if (!searched) fillChips(search); });
         // Swiping through a picture series loads new pictures: update the suggestions and read the new picture
