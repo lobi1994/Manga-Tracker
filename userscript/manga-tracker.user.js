@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Manga Tracker – Lesestand
 // @namespace    https://github.com/lobi1994/Manga-Tracker
-// @version      1.7.2
+// @version      1.8.0
 // @description  Zeigt auf der Kapitelübersicht, wo du aufgehört hast, speichert gelesene Kapitel automatisch und hilft, Manga-Ideen von Instagram in deinen Manga Tracker zu übernehmen.
 // @author       lobi1994
 // @match        *://*/*
@@ -349,6 +349,24 @@
       const main = document.querySelector('main') || document.body;
       return main.querySelector('article') || main;
     }
+    // Account that posted it (e.g. manhwa.flow.official): never a manga title
+    function authors() {
+      const out = new Set();
+      postScope().querySelectorAll('a[href^="/"]').forEach((a) => {
+        const m = (a.getAttribute('href') || '').match(/^\/([A-Za-z0-9_.]{2,30})\/?$/);
+        if (m && (a.textContent || '').trim().toLowerCase() === m[1].toLowerCase()) out.add(m[1]);
+      });
+      if (igId(location.href) === firstId) {
+        const d = document.querySelector('meta[property="og:description"]');
+        const m = d && d.content && d.content.match(/[-–]\s*([A-Za-z0-9_.]{2,30})\s+(?:on|am)\s/);
+        if (m) out.add(m[1]);
+      }
+      return [...out].map((x) => x.toLowerCase().replace(/[^a-z0-9]/g, '')).filter((x) => x.length >= 3);
+    }
+    const isAuthor = (t, list) => {
+      const n = t.toLowerCase().replace(/[^a-z0-9]/g, '');
+      return n.length >= 3 && list.some((a) => n === a || (n.length >= 5 && a.indexOf(n) >= 0) || (a.length >= 5 && n.indexOf(a) >= 0));
+    };
     function texts() {
       const out = [];
       // The preview text in the page head belongs to the post the page was loaded with
@@ -515,7 +533,8 @@
 
     function fillChips(onPick) {
       if (!chipBox) return;
-      const list = candidates(texts(), ocrTexts).filter((t) => blocked.indexOf(t.toLowerCase()) < 0);
+      const who = authors();
+      const list = candidates(texts(), ocrTexts).filter((t) => blocked.indexOf(t.toLowerCase()) < 0 && !isAuthor(t, who));
       chipBox.innerHTML = '';
       if (!list.length) chipBox.appendChild(mk('div', 'm', T('No title found in the text – type it in, or swipe to the next picture.', 'Kein Titel im Text gefunden – tipp ihn ein oder wisch zum nächsten Bild.')));
       list.forEach((t) => chipBox.appendChild(chip(t, onPick)));

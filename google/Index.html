@@ -974,9 +974,23 @@ function renderRecs(){
   $("recNote").textContent=recLoading?t("recUpdating"):(recUpd?t("recUpdated",fmt(recUpd)):"");
   if(!recs.length){$("recList").innerHTML=`<div class="list"><div class="empty-state">${t("recNone")}</div></div>`;return}
   const min=Number(prefs.recMin||0), ctry=prefs.recCountry||"all", sort=prefs.recSort||"match";
-  // v2.9: genre filter. Your own categories (e.g. Murim) count when a recommendation comes from your series in that category.
+  // v2.9.1: genre filter. A recommendation belongs to one of your categories (e.g. Murim) when the series itself is one:
+  // judged from its description, titles and official links. Other own categories fall back to "recommended because of your series in it".
+  const CAT_RULES=[
+    [/murim/i,/\b(murim|martial[- ](?:arts?|artists?|world|sects?)|jianghu|wulin|kangho|gangho|heavenly demon|cheonma|demonic cult|blood cult|orthodox (?:faction|sects?)|unorthodox|mount hua|hwasan|wudang|shaolin|namgung|tang clan|sichuan|kung ?fu|inner energy|internal energy|dantian|danjeon|sect leader|swordsmanship|wuxia)\b/i],
+    [/kultivation|cultivation/i,/\b(cultivat\w*|kultivier\w*|immortals?|daoist|dao heart|qi refining|foundation establishment|core formation|nascent soul|spirit roots?|xianxia|xuanhuan|sect)\b/i],
+    [/hunter|system|game/i,/\b(hunters?|system|status window|gates?|dungeons?|level(?:ing|s| up)?|players?|game|awaken(?:ed|ing|er)?|raid|guild)\b/i],
+    [/^fantasy$/i,null]
+  ];
   const catOf={}; items.forEach(i=>{catOf[String(i.title).toLowerCase()]=i.genres||[]});
-  const recCats=r=>{const src=r.kind==="sequel"?[String(r.why).split("|")[0]]:String(r.why||"").split(" | ");const s=new Set();src.forEach(x=>(catOf[String(x).trim().toLowerCase()]||[]).forEach(c=>s.add(c)));return s};
+  const viaWhy=(r,c)=>{const src=r.kind==="sequel"?[String(r.why).split("|")[0]]:String(r.why||"").split(" | ");return src.some(x=>(catOf[String(x).trim().toLowerCase()]||[]).includes(c))};
+  const recText=r=>[r.title,(r.alt||[]).join(" "),r.desc,r.descDe,r.official].filter(Boolean).join(" ");
+  const inCat=(r,c)=>{
+    const rule=CAT_RULES.find(x=>x[0].test(c));
+    if(!rule)return viaWhy(r,c);
+    if(!rule[1])return (r.genres||[]).some(g=>g.toLowerCase()===c.toLowerCase());
+    return rule[1].test(recText(r));
+  };
   const mine=[...new Set(items.flatMap(i=>i.genres||[]))].sort((a,b)=>a.localeCompare(b));
   const alg=[...new Set(recs.flatMap(r=>r.genres||[]))].sort((a,b)=>a.localeCompare(b));
   let gen=prefs.recGenre||"all";
@@ -985,7 +999,7 @@ function renderRecs(){
     +(mine.length?`<optgroup label="${esc(t("recGenreMine"))}">${mine.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("")}</optgroup>`:"")
     +(alg.length?`<optgroup label="${esc(t("recGenreAl"))}">${alg.map(g=>`<option value="al:${esc(g)}">${esc(g)}</option>`).join("")}</optgroup>`:"");
   $("recGenre").value=gen;
-  const okG=r=>gen==="all"||(gen.startsWith("al:")?(r.genres||[]).includes(gen.slice(3)):recCats(r).has(gen));
+  const okG=r=>gen==="all"||(gen.startsWith("al:")?(r.genres||[]).includes(gen.slice(3)):inCat(r,gen));
   const okR=r=>okG(r)&&(!min||(r.chapters!=null&&r.chapters>=min))&&(ctry==="all"||(ctry==="KR"?r.country==="KR":r.country==="CN"||r.country==="TW"));
   const srt=(a,b)=>sort==="avg"?(b.avg||0)-(a.avg||0):sort==="ch"?(b.chapters||0)-(a.chapters||0):(b.score||0)-(a.score||0);
   const main=recs.filter(r=>r.kind!=="sequel"&&okR(r)).sort(srt), seq=recs.filter(r=>r.kind==="sequel"&&okR(r)).sort(srt);
@@ -1312,7 +1326,7 @@ applyPage(); applyLang(); reload(false);
 <script>
 /* App version shown at the bottom of every page; raise it with every update and note it in the change log */
 (function(){
-  var APP_VERSION = 'v2.9.0', APP_DATE = '10.11.2026';
+  var APP_VERSION = 'v2.9.1', APP_DATE = '10.11.2026';
   var f = document.createElement('div');
   f.id = 'appVersion';
   f.textContent = 'Manga Tracker ' + APP_VERSION + ' \u00b7 ' + APP_DATE;
