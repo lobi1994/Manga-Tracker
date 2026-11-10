@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Manga Tracker – Lesestand
 // @namespace    https://github.com/lobi1994/Manga-Tracker
-// @version      1.9.1
+// @version      1.10.0
 // @description  Zeigt auf der Kapitelübersicht, wo du aufgehört hast, speichert gelesene Kapitel automatisch und hilft, Manga-Ideen von Instagram in deinen Manga Tracker zu übernehmen.
 // @author       lobi1994
 // @match        *://*/*
@@ -335,9 +335,9 @@
     const igId = (u) => { const m = String(u || '').match(/instagram\.com\/(?:[A-Za-z0-9_.]+\/)?(?:p|reels?|tv)\/([A-Za-z0-9_-]+)/i); return m ? m[1] : null; };
     let inbox = [], lastKey = '-', open = false, searched = false, chipBox = null;
     let ocrTexts = [], ocrDone = {}, ocrBusy = 0, ocrOff = false, ocrInfo = null;
-    let blocked = [];                                        // suggestions you removed (long press / swipe)
+    let blocked = [];                                        // suggestions you hid on this post (long press / swipe); back when the post is opened again
     let refreshHidden = () => {};
-    GM.getValue('igBlock', []).then((b) => { blocked = b || []; });
+    GM.setValue('igBlock', []);                              // older versions hid suggestions on every post: clear that list
     const loadInbox = () => call('apiInbox').then((l) => { inbox = l || []; return inbox; }, () => inbox);
     const nextOf = (id) => inbox.find((x) => x.id !== id);
 
@@ -547,13 +547,13 @@
     // Remove a suggestion for good: hold it, or swipe it sideways
     function removeChip(t, b, onPick) {
       const k = t.toLowerCase();
-      if (blocked.indexOf(k) < 0) { blocked.push(k); blocked = blocked.slice(-400); GM.setValue('igBlock', blocked); }
+      if (blocked.indexOf(k) < 0) { blocked.push(k); }
       b.remove();
       refreshHidden();
       if (!ocrInfo) return;
       ocrInfo.textContent = '„' + t + '“ ' + T('hidden', 'ausgeblendet') + ' ';
       ocrInfo.appendChild(btn(T('Undo', 'Rückgängig'), 's', () => {
-        blocked = blocked.filter((x) => x !== k); GM.setValue('igBlock', blocked);
+        blocked = blocked.filter((x) => x !== k);
         ocrInfo.textContent = ''; fillChips(onPick);
       }));
     }
@@ -605,7 +605,7 @@
         el.appendChild(minBtn);
         el.appendChild(btn('✕', 'x keep', () => { open = false; hide(); }));
         const ver = (typeof GM !== 'undefined' && GM.info && GM.info.script && GM.info.script.version) || '';
-        el.appendChild(mk('div', 'm w', T('Hold or swipe a suggestion sideways to hide it.', 'Vorschlag gedrückt halten oder zur Seite wischen, um ihn auszublenden.') + (ver ? ' · v' + ver : '')));
+        el.appendChild(mk('div', 'm w', T('Hold or swipe a suggestion sideways to hide it for this post.', 'Vorschlag gedrückt halten oder zur Seite wischen, um ihn für diesen Beitrag auszublenden.') + (ver ? ' · v' + ver : '')));
         chipBox = mk('div', 'chips');
         el.appendChild(chipBox);
         ocrInfo = mk('div', 'm w', '');
@@ -665,10 +665,10 @@
           hid.appendChild(btn((open2 ? '▾ ' : '▸ ') + T('Hidden suggestions', 'Ausgeblendete Vorschläge') + ' (' + blocked.length + ')', 's', () => { hid.dataset.open = open2 ? '0' : '1'; showHidden(); }));
           if (!open2) return;
           blocked.slice().reverse().forEach((k) => hid.appendChild(btn('↺ ' + k, '', () => {
-            blocked = blocked.filter((x) => x !== k); GM.setValue('igBlock', blocked); showHidden(); fillChips(search);
+            blocked = blocked.filter((x) => x !== k); showHidden(); fillChips(search);
           })));
           hid.appendChild(btn(T('Show all again', 'Alle wieder anzeigen'), 's', () => {
-            blocked = []; GM.setValue('igBlock', blocked); showHidden(); fillChips(search);
+            blocked = []; showHidden(); fillChips(search);
           }));
         };
         el.appendChild(hid);
@@ -689,7 +689,7 @@
       const key = id || location.pathname;                 // feed, profile, after login … each counts as a new page
       if (key === lastKey) return;
       lastKey = key;
-      open = false; searched = false; chipBox = null; ocrInfo = null;
+      open = false; searched = false; chipBox = null; ocrInfo = null; blocked = [];
       ocrTexts = []; ocrDone = {}; ocrBusy = 0;                // forget everything from the previous post
       hide();
       await loadInbox();
