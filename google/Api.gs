@@ -33,6 +33,7 @@ function doPost(e) {
   }
   try {
     const body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    if (body.fn === 'apiListe') zeitplaeneSichern_(false);
     const fn = String(body.fn || '');
     const k = schluessel_();
     if (!k || body.key !== k) throw new Error('Kein Zugriff');
@@ -61,6 +62,7 @@ function onOpen() {
     .addItem('Einrichten', 'mtEinrichten')
     .addItem('App-Link anzeigen', 'mtAppLink')
     .addItem('Web-App-Link ändern', 'mtLinkAendern')
+    .addItem('Zeitpläne prüfen', 'mtZeitplaene')
     .addSeparator()
     .addItem('Neuen Schlüssel erzeugen', 'mtNeuerSchluessel')
     .addToUi();
@@ -79,8 +81,11 @@ function mtEinrichten() {
   const ui = SpreadsheetApp.getUi();
   const props = PropertiesService.getScriptProperties();
   einrichten();
-  try { pruefungEinrichten(); } catch (e) { Logger.log(e); }
-  try { empfehlungenEinrichten(); } catch (e) { Logger.log(e); }
+  const fehler = [];
+  try { pruefungEinrichten(); } catch (e) { fehler.push('Kapitelprüfung: ' + (e && e.message || e)); }
+  try { empfehlungenEinrichten(); } catch (e) { fehler.push('Empfehlungen: ' + (e && e.message || e)); }
+  try { zeitplaeneSichern_(true); } catch (e) { fehler.push('Zeitpläne: ' + (e && e.message || e)); }
+  if (fehler.length) ui.alert('Manga Tracker – Hinweis', 'Nicht alles konnte eingerichtet werden:\n\n' + fehler.join('\n'), ui.ButtonSet.OK);
   if (!schluessel_()) props.setProperty('appKey', zufallsSchluessel_());
   ui.alert('Manga Tracker',
     'Fertig eingerichtet.\n\nNächster Schritt (nur einmal):\nErweiterungen → Apps Script → Bereitstellen → Neue Bereitstellung → Typ „Web-App“\n' +
@@ -154,3 +159,47 @@ function mtNeuerSchluessel() {
 
 /** Gespeicherten Web-App-Link ersetzen (z. B. nach einer neuen Bereitstellung statt einer neuen Version). */
 function mtLinkAendern() { if (mtAppLinkEintragen()) mtAppLink(); }
+
+/* ------------------------------------------------------------------ */
+/* Zeitpläne: fehlen sie (z. B. nach einem Fehler beim Einrichten),     */
+/* legt die App sie beim Öffnen von selbst wieder an.                  */
+/* ------------------------------------------------------------------ */
+
+/** Legt die Zeitpläne für Kapitelprüfung (4× täglich) und Mail (18 Uhr) an, falls sie fehlen.
+ *  force=false: höchstens alle 6 Stunden nachsehen. Gibt die angelegten Zeitpläne zurück. */
+function zeitplaeneSichern_(force) {
+  const props = PropertiesService.getScriptProperties();
+  if (!force && Date.now() - Number(props.getProperty('trgChk') || 0) < 6 * 3600 * 1000) return [];
+  props.setProperty('trgChk', String(Date.now()));
+  const neu = [];
+  try {
+    const have = ScriptApp.getProjectTriggers().map(t => t.getHandlerFunction());
+    const anz = have.filter(h => h === 'kapitelPruefen').length;
+    if (anz < 4) {
+      ScriptApp.getProjectTriggers().forEach(t => { if (t.getHandlerFunction() === 'kapitelPruefen') ScriptApp.deleteTrigger(t); });
+      [[8, 0], [12, 0], [17, 0], [23, 30]].forEach(([h, m]) => ScriptApp.newTrigger('kapitelPruefen').timeBased().everyDays(1).atHour(h).nearMinute(m).inTimezone(TZ).create());
+      neu.push('Kapitelprüfung 4× täglich');
+    }
+    if (have.indexOf('mailSenden') < 0) {
+      ScriptApp.newTrigger('mailSenden').timeBased().everyDays(1).atHour(18).nearMinute(0).inTimezone(TZ).create();
+      neu.push('Mail um 18 Uhr');
+    }
+  } catch (e) {
+    if (force) throw e;
+    Logger.log('Zeitpläne: ' + e);
+  }
+  return neu;
+}
+
+/** Menü „Zeitpläne prüfen“: zeigt, was läuft, und legt Fehlendes neu an. */
+function mtZeitplaene() {
+  const ui = SpreadsheetApp.getUi();
+  let neu, msg;
+  try { neu = zeitplaeneSichern_(true); }
+  catch (e) { ui.alert('Manga Tracker', 'Zeitpläne konnten nicht angelegt werden:\n' + (e && e.message || e), ui.ButtonSet.OK); return; }
+  const liste = ScriptApp.getProjectTriggers().map(t => t.getHandlerFunction());
+  const zahl = {}; liste.forEach(h => { zahl[h] = (zahl[h] || 0) + 1; });
+  msg = (neu.length ? 'Neu angelegt: ' + neu.join(', ') + '\n\n' : 'Alles vorhanden.\n\n') +
+    'Aktive Zeitpläne:\n' + Object.keys(zahl).map(h => '• ' + h + (zahl[h] > 1 ? ' (' + zahl[h] + '×)' : '')).join('\n');
+  ui.alert('Manga Tracker – Zeitpläne', msg, ui.ButtonSet.OK);
+}
