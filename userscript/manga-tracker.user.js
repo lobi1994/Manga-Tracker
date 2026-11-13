@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Manga Tracker – Lesestand
 // @namespace    https://github.com/lobi1994/Manga-Tracker
-// @version      1.11.0
+// @version      1.12.0
 // @description  Zeigt auf der Kapitelübersicht, wo du aufgehört hast, speichert gelesene Kapitel automatisch und hilft, Manga-Ideen von Instagram in deinen Manga Tracker zu übernehmen.
 // @author       lobi1994
 // @match        *://*/*
@@ -229,7 +229,16 @@
       if (Object.keys(chapterLinks()).length < 3) return;
     }
     let st;
-    try { st = await call('apiLesestand', [url]); } catch (e) { return; }
+    try { st = await call('apiLesestand', [url]); } catch (e) {
+      // Do not fail silently on a reading site: say why nothing happens
+      if (my === gen) {
+        const m = String(e && e.message || e);
+        pill(m === 'net'
+          ? T('Reading overlay: no connection to your Google web app.', 'Lesestand-Overlay: keine Verbindung zu deiner Google-Web-App.')
+          : T('Reading overlay: ', 'Lesestand-Overlay: ') + esc(m), [{ label: T('Retry', 'Nochmal'), style: 's', onClick: () => run() }], 0);
+      }
+      return;
+    }
     if (my !== gen || !st) return;
     if (ch == null) return overview(st);
     return chapterPage(st, ch, url, my);
@@ -292,7 +301,12 @@
       return call('apiAutoGelesen', [url]).then((res) => {
         if (res && res.ok) offerUndo(res);
         return res;
-      }, () => { done = false; return null; });
+      }, (e) => {
+        done = false;
+        pill(T('Chapter could not be saved: ', 'Kapitel konnte nicht gespeichert werden: ') + esc(String(e && e.message || e) === 'net' ? T('no connection', 'keine Verbindung') : (e && e.message || e)),
+          [{ label: T('Retry', 'Nochmal'), onClick: () => save() }], 0);
+        return null;
+      });
     };
 
     // End of the chapter: bottom of the last large picture is on screen (or 90 % of the page for text)
