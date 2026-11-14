@@ -577,7 +577,7 @@ function imgUrls(main,src){
 }
 function imgTag(list,extra){
   if(!list.length)return"";
-  return `<img ${window.mtHold?"data-src":"src"}="${esc(list[0])}"${list.length>1?` data-alt="${esc(list.slice(1).join("|"))}"`:""} alt="" draggable="false" ${extra||""} referrerpolicy="no-referrer" onerror="imgErr(this)">`;
+  return `<img src="${esc(list[0])}"${list.length>1?` data-alt="${esc(list.slice(1).join("|"))}"`:""} alt="" draggable="false" ${extra||""} referrerpolicy="no-referrer" onerror="imgErr(this)">`;
 }
 function cover(i,cls,tag){
   tag=tag||"button";
@@ -708,7 +708,7 @@ function renderShelf(){
   if(html===renderShelf.last&&$("shelf").firstChild)return;
   renderShelf.last=html; $("shelf").innerHTML=html;
 }
-let loaded=false; window.mtBoot=true; window.mtHold=true;   // mtHold (v2.10.5): pictures are loaded only after the first cards are on screen
+let loaded=false; window.mtBoot=true;
 function renderAll(){
   renderTabs();renderStats();renderShelf();renderTier();
   const r=items.filter(i=>i.status==="Lese ich gerade").length;
@@ -2082,7 +2082,7 @@ applyPage(); applyLang(); reload(false);
     var rot = [-4, 3, -2, 4, -3, 2, -5];
     banner.innerHTML = top.map(function (i, k) {
       var u = imgUrls(i.image, i.imageSrc);
-      return '<img alt="" loading="lazy" style="--r:' + rot[k] + 'deg" ' + (window.mtHold ? 'data-src' : 'src') + '="' + esc(u[0]) + '" data-alt="' + esc(u.slice(1).join('|')) + '" onerror="this.remove()">';
+      return '<img alt="" loading="lazy" style="--r:' + rot[k] + 'deg" src="' + esc(u[0]) + '" data-alt="' + esc(u.slice(1).join('|')) + '" onerror="this.remove()">';
     }).join('');
   }
   var baseAll = renderAll;
@@ -2133,7 +2133,7 @@ applyPage(); applyLang(); reload(false);
     var on = !!(bg && bg.url);
     document.documentElement.classList.toggle('has-bg', on);
     if (on) {
-      if (img.dataset.id !== bg.id) { img.dataset.id = bg.id; img.dataset.tried = ''; if (window.mtHold) img.setAttribute('data-src', bg.url); else img.src = bg.url; }
+      if (img.dataset.id !== bg.id) { img.dataset.id = bg.id; img.dataset.tried = ''; img.src = bg.url; }
       img.onerror = function () { if (!img.dataset.tried && bg && bg.alt) { img.dataset.tried = '1'; img.src = bg.alt; } };
     } else { img.removeAttribute('src'); img.dataset.id = ''; }
     layer.style.opacity = String(strength / 100);
@@ -2233,14 +2233,11 @@ applyPage(); applyLang(); reload(false);
     setTimeout(function(){var t4=performance.now();window.mtLite=false;renderAll();void document.body.offsetHeight;T.tier=performance.now()-t4},60);
     window.mtDraw2Ms=performance.now()-t2; window.mtDraw2At=t2;
   }
-  // 1. first cards are painted  2. their pictures start loading  3. the rest of the list follows
+  // v2.10.5: the rest of the list follows only after the first cards are really on screen
   var went=false;
   function afterPaint(){
     if(went)return; went=true; T.paintAt=performance.now();
-    window.mtHold=false;
-    document.querySelectorAll("img[data-src]").forEach(function(im){im.src=im.getAttribute("data-src");im.removeAttribute("data-src")});
-    renderShelf.last=null;      // the next drawing has real picture addresses
-    setTimeout(rest,200);
+    setTimeout(rest,50);
   }
   try{requestAnimationFrame(function(){requestAnimationFrame(function(){setTimeout(afterPaint,0)})})}catch(e){}
   setTimeout(afterPaint,1500);
