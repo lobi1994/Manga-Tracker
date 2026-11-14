@@ -126,7 +126,9 @@ Collect reels and posts with manga tips and add them to your list later with one
 
 How to use: in Instagram, on a reel or post tap **Share** (paper plane) → **Share to …** / **More** → **Manga merken**. "Saved ✓ (3 open)" appears. The links go to the **Inbox** sheet of your spreadsheet.
 
-**Going through them** (needs the overlay from 6b, version 1.2 or newer):
+**Going through them in the app** (from v2.11, without Safari): about a minute after sharing, the script reads the post itself (caption and the text on the pictures). In the app under **Recommendations → Instagram ideas** you then see the titles it found, with cover and the current chapter count (from MangaUpdates/AniList, not from the post) – **Add** or **Don't add** for each. If a title is missing or wrong, use the search field below. Needs text recognition (in Apps Script: **Services +** → **Drive API**, then run `ocrBerechtigen` once). Titles that are only in the comments or only in a video are not found – open the post in Safari for those:
+
+**Going through them in Safari** (needs the overlay from 6b, version 1.2 or newer):
 
 1. In **Safari**, open [instagram.com](https://www.instagram.com) and log in. At the bottom: "📥 3 manga ideas saved" → **Open ›**.
 2. The overlay suggests titles from the caption and picture texts; in picture series more appear as you swipe. Tap the right title or type it.
@@ -160,6 +162,7 @@ The app link and key stay the same, so you don't need to change the app or the s
 |---|---|
 | "Der Schlüssel passt nicht (mehr)" (the key doesn't match) | Open the setup link from **App-Link anzeigen** again. |
 | "Keine Verbindung zu deiner Google-Web-App" (no connection to your web app) | Check the deployment: access must be **Anyone**. After script changes, deploy a **new version**. |
+| The home-screen app stays white for several seconds at start | Usually a content blocker (e.g. AdGuard, AdBlock Pro). Open the app address in Safari → page menu → **Website Settings** → turn off **Use Content Blockers**. |
 | The "Manga Tracker" menu is missing | Reload the sheet and wait a few seconds. |
 | The home screen app asks for the setup link | Paste the link into the app once; it remembers it after that. |
 | Shortcut says "Kein Zugriff" (no access) | Check the app link and key in the shortcut (no spaces). |

@@ -124,7 +124,9 @@ Reels und Posts mit Manga-Tipps sammeln und später mit einem Tipp in die Liste 
 
 Benutzen: In Instagram bei einem Reel oder Post auf **Teilen** (Papierflieger) → **Teilen über …** / **Mehr** → **Manga merken**. Es erscheint „Gemerkt ✓ (3 offen)“. Die Links landen im Blatt **Inbox** deiner Tabelle.
 
-**Auswerten** (braucht das Overlay aus 6b, Version 1.2 oder neuer):
+**Auswerten in der App** (ab v2.11, ohne Safari): Etwa eine Minute nach dem Teilen liest das Skript den Beitrag selbst aus (Beschreibung und Text auf den Bildern). In der App unter **Empfehlungen → Instagram-Ideen** stehen dann die erkannten Titel mit Cover und aktuellem Kapitelstand (aus MangaUpdates/AniList, nicht aus dem Beitrag) – jeweils **Hinzufügen** oder **Nicht hinzufügen**. Fehlt ein Titel oder ist er falsch, im Suchfeld darunter suchen. Braucht die Texterkennung (in Apps Script links **Dienste +** → **Drive API**, dann einmal `ocrBerechtigen` ausführen). Titel, die nur in den Kommentaren oder nur im Video stehen, findet das Skript nicht – dafür den Beitrag in Safari öffnen:
+
+**Auswerten in Safari** (braucht das Overlay aus 6b, Version 1.2 oder neuer):
 
 1. In **Safari** [instagram.com](https://www.instagram.com) öffnen und einloggen. Unten steht „📥 3 Manga-Ideen gemerkt“ → **Öffnen ›**.
 2. Das Overlay schlägt Titel aus Beschreibung und Bildtexten vor. Bei Bilderserien beim Wischen kommen neue dazu. Auf den passenden Titel tippen oder ihn eintippen.
@@ -160,4 +162,5 @@ Der App-Link und der Schlüssel bleiben dabei gleich – App und Kurzbefehle mus
 | „Keine Verbindung zu deiner Google-Web-App“ | Bereitstellung prüfen: Zugriff muss **Jeder** sein. Nach Skript-Änderungen eine **neue Version** bereitstellen. |
 | Menü „Manga Tracker“ fehlt | Tabelle neu laden und ein paar Sekunden warten. |
 | Die Home-Bildschirm-App fragt nach dem Einrichtungs-Link | Den Link einmal in die App einfügen – sie merkt ihn sich danach. |
+| Die Home-Bildschirm-App bleibt beim Start mehrere Sekunden weiß | Meist ein Werbeblocker (z. B. AdGuard, AdBlock Pro). In Safari die App-Adresse öffnen → Seitenmenü → **Website-Einstellungen** → **Inhaltsblocker verwenden** ausschalten. |
 | Kurzbefehl meldet „Kein Zugriff“ | App-Link und Schlüssel im Kurzbefehl prüfen (keine Leerzeichen). |

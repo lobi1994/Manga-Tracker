@@ -13,6 +13,10 @@ function ocrBerechtigen() {
 
 function apiBildText(key, imgUrl) {
   check_(key);
+  return bildText_(imgUrl);
+}
+
+function bildText_(imgUrl) {
   const u = String(imgUrl || '');
   const m = u.match(/^https:\/\/([^\/?#]+)\//i);
   if (!m || !OCR_HOSTS.test(m[1])) return { text: '', error: 'host' };

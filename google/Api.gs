@@ -31,7 +31,7 @@ function doPost(e) {
       const k = schluessel_();
       if (!k || p.key !== k) throw new Error('Kein Zugriff');
       if (!/^api[A-Za-z]+$/.test(p.fn) || typeof globalThis[p.fn] !== 'function') throw new Error('Unbekannte Funktion: ' + p.fn);
-      const r = globalThis[p.fn].apply(null, [p.key].concat(p.url != null ? [p.url] : []));
+      const r = globalThis[p.fn].apply(null, [p.key].concat(p.url != null ? [p.url] : [], p.html != null ? [p.html] : []));
       txt = typeof r === 'string' ? r : JSON.stringify(r);
     } catch (err) { txt = String((err && err.message) || err); }
     return ContentService.createTextOutput(txt).setMimeType(ContentService.MimeType.TEXT);

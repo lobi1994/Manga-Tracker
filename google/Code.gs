@@ -245,8 +245,14 @@ function tage_(a, b) { return Math.round((Date.parse(b) - Date.parse(a)) / 864e5
 function datum_(v) { return v instanceof Date ? Utilities.formatDate(v, TZ, 'yyyy-MM-dd') : (v ? String(v) : null); }
 
 function alle_() {
+  const t0 = Date.now();
   const sh = blatt_(); const n = sh.getLastRow() - 1; if (n < 1) return [];
-  return zeilenLesen_(sh, n).map(ding_);
+  const t1 = Date.now();
+  const rows = zeilenLesen_(sh, n);
+  const t2 = Date.now();
+  const out = rows.map(ding_);
+  alle_.zeit = [t1 - t0, t2 - t1, Date.now() - t2];     // Öffnen, Lesen, Umrechnen (für die Detailzeile der App)
+  return out;
 }
 
 /** Liest nur die Zeilen mit Titel (v2.10.7). Die Tabelle hat durch die Checkboxen rund 1000 „belegte“ Zeilen,
@@ -283,16 +289,26 @@ function freieZeile_(sh) {
 }
 
 /** Eine Tabellenzeile als Serie (für die ganze Liste und für eine einzelne Zeile nach dem Speichern). */
+/** Datum als yyyy-MM-dd in der Zeitzone der Tabelle. Rechnet selbst (v2.11), statt für jede Zelle den langsamen Google-Dienst zu fragen. */
+function tag_(v) {
+  if (tag_.f === undefined) {
+    try { tag_.f = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }); tag_.f.formatToParts(new Date()); }
+    catch (e) { tag_.f = null; }
+  }
+  if (!tag_.f) return Utilities.formatDate(v, TZ, 'yyyy-MM-dd');
+  const p = {}; tag_.f.formatToParts(v).forEach(x => { p[x.type] = x.value; });
+  return p.year + '-' + p.month + '-' + p.day;
+}
+
 function ding_(r) {
-  const tz = TZ;
-  const d = v => v instanceof Date ? Utilities.formatDate(v, tz, 'yyyy-MM-dd') : (v || null);
+  const d = v => v instanceof Date ? tag_(v) : (v || null);
   const it = ({
     id: String(r[C.id - 1]),
     genres: splitG_(r[C.genres - 1]),
     title: String(r[C.title - 1]),
     chapter: r[C.chapter - 1] === '' ? null : Number(r[C.chapter - 1]),
     status: r[C.status - 1] || null,
-    lastRead: r[C.lastRead - 1] instanceof Date ? Utilities.formatDate(r[C.lastRead - 1], tz, 'yyyy-MM-dd') : (r[C.lastRead - 1] || null),
+    lastRead: d(r[C.lastRead - 1]),
     url: r[C.url - 1] || null,
     rating: r[C.rating - 1] ? String(r[C.rating - 1]) : null,
     note: r[C.note - 1] || null,

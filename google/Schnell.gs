@@ -25,6 +25,6 @@ function apiStart(key, have) {
   if (have && have === rev) out.same = true; else out.items = items;
   // Zeiten in Millisekunden (für die Detailzeile der App): Liste lesen, Kategorien lesen, Rest
   out.ms = Date.now() - t0;
-  out.t = [t1 - t0, t2 - t1, Date.now() - t2];
+  out.t = [t1 - t0, t2 - t1, Date.now() - t2].concat(alle_.zeit || []);
   return out;
 }

@@ -4,7 +4,7 @@
  *  Kapitelzahlen kommen kostenlos von MangaUpdates (Kapitelstand) und AniList (Ersatz). */
 
 const INBOX_SHEET = 'Inbox';
-const INBOX_HEAD = ['Link', 'Gemerkt am', 'Status', 'Titel'];
+const INBOX_HEAD = ['Link', 'Gemerkt am', 'Status', 'Titel', 'Vorschl\u00e4ge', 'Ausgelesen'];
 const MU = 'https://api.mangaupdates.com/v1';
 
 function inboxBlatt_() {
@@ -14,6 +14,10 @@ function inboxBlatt_() {
     sh = ss.insertSheet(INBOX_SHEET);
     sh.getRange(1, 1, 1, INBOX_HEAD.length).setValues([INBOX_HEAD]).setFontWeight('bold');
     sh.setFrozenRows(1);
+  }
+  if (!inboxBlatt_.ok) {     // ältere Inbox (4 Spalten): Überschriften ergänzen
+    if (String(sh.getRange(1, INBOX_HEAD.length).getValue()) !== INBOX_HEAD[INBOX_HEAD.length - 1]) sh.getRange(1, 1, 1, INBOX_HEAD.length).setValues([INBOX_HEAD]).setFontWeight('bold');
+    inboxBlatt_.ok = true;
   }
   return sh;
 }
@@ -30,7 +34,7 @@ function inboxZeilen_(sh) {
   const n = sh.getLastRow() - 1;
   if (n < 1) return [];
   return sh.getRange(2, 1, n, INBOX_HEAD.length).getValues().map(function (r, i) {
-    return { row: i + 2, url: String(r[0] || ''), date: r[1] instanceof Date ? Utilities.formatDate(r[1], TZ, 'yyyy-MM-dd') : String(r[1] || ''), status: String(r[2] || ''), title: String(r[3] || '') };
+    return { row: i + 2, url: String(r[0] || ''), date: r[1] instanceof Date ? Utilities.formatDate(r[1], TZ, 'yyyy-MM-dd') : String(r[1] || ''), status: String(r[2] || ''), title: String(r[3] || ''), cand: igJson_(r[4]), read: String(r[5] || '') };
   });
 }
 function inboxMsg_(k, a, b) {
@@ -58,7 +62,8 @@ function apiInboxNeu(key, url) {
     const open = rows.filter(function (r) { return !r.status || r.status === 'offen'; }).length;
     if (old && (!old.status || old.status === 'offen')) return inboxMsg_('dup', open);
     if (old) return inboxMsg_('done', old.title || old.status);
-    sh.appendRow([link, new Date(), 'offen', '']);
+    sh.appendRow([link, new Date(), 'offen', '', '', '']);
+    planeLauf_('inboxAuslesen');     // Titel im Hintergrund auslesen (v2.11)
     return inboxMsg_('saved', open + 1);
   } finally { lock.releaseLock(); }
 }
@@ -74,7 +79,7 @@ function apiInbox(key) {
 function apiInboxAlle(key) {
   check_(key);
   return inboxZeilen_(inboxBlatt_()).filter(function (r) { return r.url; }).map(function (r) {
-    return { url: r.url, date: r.date, status: r.status || 'offen', title: r.title };
+    return { url: r.url, date: r.date, status: r.status || 'offen', title: r.title, cand: r.cand, read: r.read };
   }).reverse();
 }
 
