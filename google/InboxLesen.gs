@@ -115,11 +115,65 @@ function igSchoen_(t) {
   return t.toLowerCase().split(' ').map(function (w, i) { return i && klein.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1); }).join(' ');
 }
 
+/** Listen-Bilder (v2.11.2): viele Beiträge zeigen pro Bild mehrere Einträge – Genre-Schildchen, Titel, darunter Kapitelzahl und Status.
+ *  Ein Titel ist dort der Text direkt ÜBER einer Kapitelzahl oder einem Status. Gibt die Einträge zurück:
+ *  { vars: mögliche Titel (kürzester zuerst), std: Titel ohne vorangestellte Schildchen, zahl: Kapitelzahl laut Bild }.
+ *  oftWort: Wörter aus Zeilen, die auf mehreren Bildern stehen (Schildchen wie „ACTION FANTASY“, Kopfzeile, Account-Name). */
+function igListe_(text, oftWort) {
+  const lines = String(text || '').split(/\n+/).map(function (l) { return l.trim(); }).filter(Boolean);
+  const ST = /^[\s•·*\-–]*(?:ongoing|completed?|finished|hiatus|on hiatus|dropped|cancell?ed|laufend|abgeschlossen|pausiert)\s*$/i;
+  const tagWort = function (x) { return !!oftWort[x] || /^\d+$/.test(x) || IG_NOISE.test(x) || igIsInfo_(x); };
+  const art = lines.map(function (l) {
+    if (/^\d{1,4}\+?$/.test(l)) return /^0\d$/.test(l) ? 'x' : 'num';                                  // „144+“; „02“ ist die laufende Nummer
+    if (ST.test(l)) return 'st';
+    if (/^[\s•·]*(?:\d{1,4}\+?\s*)?(?:chapters?|chaps?|episodes?|kapitel)\s*$/i.test(l)) return 'ch';
+    if (/\d\s*[-–\/]\s*\d|\bof\s+\d+\b/i.test(l) || /@|https?:|www\.|\.com\b|[|]/i.test(l)) return 'x';     // 01/07, PICKS 01-04 OF 28, Adressen
+    const w = titelNorm_(l).split(' ').filter(Boolean);
+    if (!w.length || !/[A-Za-z]{2}/.test(l) || (w.length === 1 && w[0].length <= 3)) return 'x';
+    const lang = w.filter(function (x) { return x.length > 2; });
+    if (lang.every(tagWort) && !/\s(?:of|the|a|an|as|to|in|on|and|with|is|for|from)\s*$/i.test(l)) return w.length === 1 ? 'w1' : 'tag';   // „REINCARNATION OF“ ist kein Schildchen, sondern ein Titelanfang
+    return /[A-Za-z]\s+\d{1,4}\+?\s*$/.test(l) ? 'ti' : 't';                                            // „GENIUS DARK KNIGHT 170+“: Zahl in der Titelzeile
+  });
+  const ohneZahl = function (l) { return l.replace(/\s+\d{1,4}\+?\s*$/, ''); };
+  const out = [];
+  for (let e = 0; e < lines.length; e++) {
+    if (art[e] !== 't' && art[e] !== 'ti' && art[e] !== 'w1') continue;
+    const nach = art[e + 1];
+    if (!(art[e] === 'ti' || nach === 'num' || nach === 'ch' || nach === 'st')) continue;               // darunter steht keine Kapitelzahl / kein Status
+    const vars = []; let std = '', nurText = true;
+    for (let s0 = e; s0 >= Math.max(0, e - 3); s0--) {
+      if (art[s0] !== 't' && art[s0] !== 'w1' && !(s0 === e && art[s0] === 'ti')) break;
+      const teil = lines.slice(s0, e + 1).map(function (l, i) { return s0 + i === e ? ohneZahl(l) : l; });
+      const v = igClean_(teil.join(' ')) || teil.join(' ');
+      if (v.split(' ').length > 12) break;
+      const hatText = lines.slice(s0, e + 1).some(function (l, i) { return art[s0 + i] !== 'w1'; });
+      if (hatText) vars.push(v);
+      // Für den Titel ohne Datenbank-Treffer: Zeilen davor zählen nur, solange sie kein Schildchen sind –
+      // also nicht überwiegend aus Genre-Wörtern bestehen („ACADEMY FANTASY“) und kein einzelnes Wort direkt unter einem Schildchen sind („KINGDOM“ / „GAME“)
+      if (s0 !== e) {
+        const w0 = titelNorm_(lines[s0]).split(' ').filter(function (x) { return x.length > 2; });      // „DRAGONSLAYER'S“ → ohne das „s“
+        const offenesEnde = /\s(?:of|the|a|an|as|to|in|on|and|with|is|for|from|by)\s*$/i.test(lines[s0]);            // „REINCARNATION OF“ geht in der nächsten Zeile weiter
+        const halbTag = !offenesEnde && (!w0.length || w0.filter(tagWort).length * 2 >= w0.length);
+        const unterTag = w0.length === 1 && art[s0 - 1] === 'w1' && !/:\s*$/.test(lines[s0]);
+        if (art[s0] !== 't' || halbTag || unterTag) nurText = false;
+      }
+      if (hatText && nurText) std = v;
+    }
+    if (!vars.length) continue;
+    let zahl = '';
+    const inl = art[e] === 'ti' ? lines[e].match(/(\d{1,4}\+?)\s*$/) : null;
+    if (inl) zahl = inl[1];
+    for (let j = e + 1; !zahl && j <= e + 3 && j < lines.length; j++) { if (art[j] === 'num') zahl = lines[j]; else if (art[j] !== 'st' && art[j] !== 'ch') break; }
+    out.push({ vars: vars, std: std || vars[0], zahl: zahl });
+  }
+  return out;
+}
+
 /** Einen Beitrag auslesen: Beschreibung + Bildtexte → Titel. Gibt { cand, note, text } zurück.
- *  Reihenfolge: 1. Texte, die auf fast jedem Bild stehen (Kopfzeile, Account-Name), fliegen raus.
- *  2. Jede mögliche Titel-Variante wird zuerst mit deiner eigenen Liste verglichen (ohne Internet),
- *  3. der Rest gesammelt bei AniList gesucht. 4. Pro Bild gewinnt die längste Variante mit Treffer;
- *  was nach Titel aussieht, aber nirgends gefunden wurde, wird als „nicht gefunden“ trotzdem angeboten. */
+ *  1. Listen-Bilder: Titel = Text über einer Kapitelzahl / einem Status (igListe_). Andere Bilder und die Beschreibung:
+ *     alle Zeilen-Varianten (igKandidaten_).  2. Jede Variante zuerst mit deiner eigenen Liste vergleichen (ohne Internet),
+ *  3. den Rest gesammelt bei AniList suchen.  4. Pro Eintrag gewinnt die beste Variante; Listen-Einträge ohne Treffer
+ *     werden als „nicht gefunden“ trotzdem angeboten (das Bild sagt ja, dass es ein Titel ist). */
 function igLesen_(link, html, ende) {
   let seite = html ? { code: 200, html: String(html) } : igEinbettung_(link);
   if (seite.code !== 200) return { cand: null, note: 'Fehler: Instagram antwortet mit ' + seite.code };
@@ -131,78 +185,97 @@ function igLesen_(link, html, ende) {
     const o = bildText_(a.bilder[i]);
     if (o.text) ocr.push(o.text); else if (o.error && !ocrFehler) ocrFehler = o.error;
   }
-  // 1. Zeilen, die auf mindestens der Hälfte der Bilder stehen (ab 3 Bildern), sind kein Titel
+  return igTitel_(ocr, a.caption, ende, a.bilder.length, a.video, ocrFehler);
+}
+
+/** Der Teil ohne Instagram und Texterkennung: aus den gelesenen Texten die Titel machen. */
+function igTitel_(ocr, caption, ende, bilder, video, ocrFehler) {
+  // Zeilen, die auf mehreren Bildern stehen, sind kein Titel; ihre Wörter kennzeichnen Schildchen
   const zahl = {};
   ocr.forEach(function (t) { const s = {}; t.split(/\n+/).forEach(function (l) { const k = titelNorm_(l); if (k && !s[k]) { s[k] = 1; zahl[k] = (zahl[k] || 0) + 1; } }); });
-  const grenze = Math.max(3, Math.ceil(ocr.length / 2));
-  const oft = Object.keys(zahl).filter(function (k) { return ocr.length >= 3 && zahl[k] >= grenze; }).sort(function (x, y) { return y.length - x.length; });
-  const nurKopf = function (q) {                    // besteht der Text nur aus solchen Zeilen (und Zahlen)?
-    let r = ' ' + titelNorm_(q) + ' ';
-    oft.forEach(function (k) { r = r.split(' ' + k + ' ').join(' '); });
-    return !r.replace(/\d+/g, '').trim();
-  };
-  const texte = ocr;
-  // Varianten je Quelle (Bild 1, Bild 2, …, Beschreibung)
-  const quellen = texte.map(function (t) { return igKandidaten_([], [t], true).filter(function (q) { return !nurKopf(q); }); });
-  if (a.caption) quellen.push(igKandidaten_([a.caption], [], true));
+  const oft = Object.keys(zahl).filter(function (k) { return ocr.length >= 3 && zahl[k] >= 2 && !/^\d+$/.test(k); }).sort(function (x, y) { return y.length - x.length; });
+  const oftWort = {}; oft.forEach(function (k) { k.split(' ').forEach(function (w) { oftWort[w] = 1; }); });
+  const nurKopf = function (q) { return titelNorm_(q).split(' ').filter(Boolean).every(function (w) { return oftWort[w] || /^\d+$/.test(w); }); };
+  // 1. Quellen
+  const quellen = ocr.map(function (t, i) {
+    const liste = igListe_(t, oftWort);
+    return liste.length >= 2 ? { src: i + 1, text: t, liste: liste } : { src: i + 1, text: t, vs: igKandidaten_([], [t], true).filter(function (q) { return !nurKopf(q); }) };
+  });
+  const hatListe = quellen.some(function (q) { return q.liste; });
+  if (caption) quellen.push({ src: 0, text: caption, vs: igKandidaten_([caption], [], true) });
   // 2. eigene Liste
   const list = alle_(), eigen = {};
   list.forEach(function (it) { [it.title, it.dbTitle].concat(it.alt || []).filter(Boolean).forEach(function (n) { const k = titelNorm_(n); if (k && !eigen[k]) eigen[k] = it; }); });
   const fund = {}, offen = [];
-  quellen.forEach(function (vs) { vs.forEach(function (q) {
+  const merke = function (q) {
     const k = titelNorm_(q); if (!k || k in fund) return;
-    if (eigen[k]) fund[k] = { p: 1, mine: eigen[k] }; else { fund[k] = null; if (offen.length < 150) offen.push(q); }
-  }); });
+    if (eigen[k]) fund[k] = { p: 1, mine: eigen[k] }; else { fund[k] = null; if (offen.length < 200) offen.push(q); }
+  };
+  quellen.forEach(function (q) { if (q.liste) q.liste.forEach(function (e) { e.vars.forEach(merke); }); else q.vs.forEach(merke); });
   // 3. AniList (gesammelt)
   let gesucht = 0;
   if (!(ende && Date.now() > ende)) {
     const r = igSucheViele_(offen); gesucht = offen.length;
     offen.forEach(function (q, i) { if (r[i]) fund[titelNorm_(q)] = r[i]; });
   }
-  // 4. Auswahl je Quelle
+  // 4. Auswahl
   const cand = [], doppelt = {};
   const worte = function (q) { return titelNorm_(q).split(' ').filter(Boolean); };
-  const ueberlappt = function (q, andere) {          // teilt mehr als die Hälfte seiner Wörter mit einem schon gewählten Text
+  const nimm = function (q, f, src, post) {
+    const title = f ? (f.mine ? f.mine.title : f.title) : igSchoen_(q), n = titelNorm_(title);
+    if (!n || doppelt[n]) return; doppelt[n] = 1;
+    if (!f) cand.push({ q: q, title: title, type: '', year: '', latest: null, completed: false, image: '', link: '', sure: false, nohit: true, inList: null, src: src, post: post, state: '' });
+    else if (f.mine) cand.push({ q: q, title: title, type: '', year: '', latest: f.mine.latest, completed: false, image: f.mine.image || '', link: '', sure: true, inList: title, src: src, post: post, state: '' });
+    else cand.push({ q: q, title: title, type: f.type, year: f.year, latest: f.latest, completed: f.completed, image: f.image, link: f.link, sure: f.p >= 0.9, inList: eigen[n] ? eigen[n].title : null, src: src, post: post, state: '' });
+  };
+  const ueberlappt = function (q, andere) {          // der eine steckt im anderen, oder mehr als die Hälfte der Wörter ist gleich
     const n = ' ' + titelNorm_(q) + ' ', w = toks_(q);
     return andere.some(function (o) {
       const on = ' ' + titelNorm_(o) + ' ';
-      if (n.indexOf(on) >= 0 || on.indexOf(n) >= 0) return true;                       // der eine steckt im anderen
+      if (n.indexOf(on) >= 0 || on.indexOf(n) >= 0) return true;
       const ow = toks_(o), gem = w.filter(function (x) { return ow.indexOf(x) >= 0; }).length;
-      return gem * 2 > Math.min(w.length, ow.length);                                  // oder mehr als die Hälfte der Wörter ist gleich
+      return gem * 2 > Math.min(w.length, ow.length);
     });
   };
-  quellen.forEach(function (vs, qi) {
-    const src = qi < texte.length ? qi + 1 : 0;      // Bildnummer, 0 = Beschreibung
-    const roh = src ? texte[qi] : a.caption;
+  quellen.forEach(function (qu) {
+    if (qu.liste) {
+      qu.liste.forEach(function (e) {
+        let best = null;
+        e.vars.forEach(function (v) {
+          const f = fund[titelNorm_(v)], w = worte(v).length;
+          if (!f || (w < 2 && e.vars.length > 1) || (f.p < 0.9 && w < 2)) return;                      // ein einzelnes Wort zählt nur, wenn der Eintrag nichts anderes hat
+          const rang = (f.p >= 0.9 ? 100 : 0) + f.p * 10 + w / 100;
+          if (!best || rang > best.rang) best = { v: v, f: f, rang: rang };
+        });
+        if (best) nimm(best.v, best.f, qu.src, e.zahl);
+        else if (worte(e.std).length >= 2 && !nurKopf(e.std)) nimm(e.std, null, qu.src, e.zahl);
+      });
+      return;
+    }
     const gewaehlt = [];
-    vs.map(function (q) { return { q: q, f: fund[titelNorm_(q)] || null, w: worte(q).length }; })
-      .filter(function (x) { return x.f && (x.f.p >= 0.9 || x.w >= 2); })
+    qu.vs.map(function (q) { return { q: q, f: fund[titelNorm_(q)] || null, w: worte(q).length }; })
+      .filter(function (x) { return x.f && (hatListe && qu.src ? x.f.p >= 0.9 && x.w >= 2 : (x.f.p >= 0.9 || x.w >= 2)); })   // neben Listen-Bildern (z. B. die Werbeseite am Ende) nur sichere Treffer
       .sort(function (x, y) { return (y.f.p >= 0.9 ? 1 : 0) - (x.f.p >= 0.9 ? 1 : 0) || y.w - x.w; })
       .forEach(function (x) {
         if (ueberlappt(x.q, gewaehlt)) return;
         gewaehlt.push(x.q);
-        const f = x.f, title = f.mine ? f.mine.title : f.title, n = titelNorm_(title);
-        if (doppelt[n]) return; doppelt[n] = 1;
-        if (f.mine) cand.push({ q: x.q, title: title, type: '', year: '', latest: f.mine.latest, completed: false, image: f.mine.image || '', link: '', sure: true, inList: title, src: src, post: igKapitelLautBeitrag_(roh, x.q), state: '' });
-        else cand.push({ q: x.q, title: title, type: f.type, year: f.year, latest: f.latest, completed: f.completed, image: f.image, link: f.link, sure: f.p >= 0.9, inList: eigen[n] ? eigen[n].title : null, src: src, post: igKapitelLautBeitrag_(roh, x.q), state: '' });
+        nimm(x.q, x.f, qu.src, igKapitelLautBeitrag_(qu.text, x.q));
       });
-    // nicht gefunden, sieht aber nach Titel aus: längste Varianten zuerst, höchstens 4 je Quelle (nur von Bildern)
-    if (!src) return;
+    if (!qu.src || hatListe) return;
+    // Bild ohne Listen-Aufbau: was nach Titel aussieht, aber nicht gefunden wurde – höchstens 4, längste zuerst
     let rest = 0;
-    vs.filter(function (q) { return worte(q).length >= 2 && !fund[titelNorm_(q)]; })
+    qu.vs.filter(function (q) { return worte(q).length >= 2 && !fund[titelNorm_(q)]; })
       .sort(function (x, y) { return worte(y).length - worte(x).length; })
       .forEach(function (q) {
         if (rest >= 4 || ueberlappt(q, gewaehlt)) return;
         gewaehlt.push(q); rest++;
-        const title = igSchoen_(q), n = titelNorm_(title);
-        if (doppelt[n]) return; doppelt[n] = 1;
-        cand.push({ q: q, title: title, type: '', year: '', latest: null, completed: false, image: '', link: '', sure: false, nohit: true, inList: null, src: src, post: igKapitelLautBeitrag_(roh, q), state: '' });
+        nimm(q, null, qu.src, igKapitelLautBeitrag_(qu.text, q));
       });
   });
-  const note = Utilities.formatDate(new Date(), TZ, 'dd.MM.yyyy HH:mm') + ' · ' + a.bilder.length + ' Bilder, ' + ocr.length + ' mit Text · '
-    + cand.filter(function (c) { return !c.nohit; }).length + ' Titel gefunden, ' + cand.filter(function (c) { return c.nohit; }).length + ' unklar, ' + gesucht + ' gesucht'
-    + (a.video ? ' · Video' : '') + (ocrFehler && !ocr.length ? ' · Texterkennung: ' + ocrFehler : '');
-  return { cand: cand.slice(0, 60), note: note, text: ocr.map(function (t, i) { return '[Bild ' + (i + 1) + ']\n' + t; }).join('\n\n').slice(0, 20000) };
+  const note = Utilities.formatDate(new Date(), TZ, 'dd.MM.yyyy HH:mm') + ' · ' + bilder + ' Bilder, ' + ocr.length + ' mit Text · '
+    + cand.filter(function (c) { return !c.nohit; }).length + ' Titel gefunden, ' + cand.filter(function (c) { return c.nohit; }).length + ' nicht in AniList, ' + gesucht + ' gesucht'
+    + (video ? ' · Video' : '') + (ocrFehler && !ocr.length ? ' · Texterkennung: ' + ocrFehler : '');
+  return { cand: cand.slice(0, 80), note: note, text: ocr.map(function (t, i) { return '[Bild ' + (i + 1) + ']\n' + t; }).join('\n\n').slice(0, 20000) };
 }
 
 function igSchreiben_(sh, row, res) {
@@ -243,6 +316,19 @@ function apiInboxLesen(key, url) {
   const f = igEintrag_(url); if (!f) return null;
   igSchreiben_(f.sh, f.r.row, res);
   return igAntwort_(igEintrag_(url).r);
+}
+
+/** Safari-Overlay (ab 1.13): die Titel eines Beitrags – dieselbe Erkennung wie in der App.
+ *  Steht der Beitrag schon ausgelesen in der Inbox, kommt das Ergebnis sofort; sonst wird er jetzt gelesen. */
+function apiIgBeitrag(key, url) {
+  check_(key);
+  const link = igLink_(url); if (!link) return null;
+  const e = igEintrag_(link);
+  if (e && e.r.cand) return { cand: e.r.cand, read: e.r.read };
+  let res;
+  try { res = igLesen_(link, null, Date.now() + 3 * 60 * 1000); } catch (err) { return { cand: null, read: 'Fehler: ' + String(err && err.message || err).slice(0, 160) }; }
+  if (e && res.cand) { const f = igEintrag_(link); if (f) igSchreiben_(f.sh, f.r.row, res); }
+  return { cand: res.cand, read: res.note };
 }
 
 /** Kurzbefehl (falls Instagram Googles Server abweist): das iPhone lädt die Einbettungs-Seite selbst und schickt sie mit. */

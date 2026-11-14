@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Manga Tracker – Lesestand
 // @namespace    https://github.com/lobi1994/Manga-Tracker
-// @version      1.12.0
+// @version      1.13.0
 // @description  Zeigt auf der Kapitelübersicht, wo du aufgehört hast, speichert gelesene Kapitel automatisch und hilft, Manga-Ideen von Instagram in deinen Manga Tracker zu übernehmen.
 // @author       lobi1994
 // @match        *://*/*
@@ -549,10 +549,27 @@
       });
     }
 
+    // 1.13.0: the script in your sheet reads the whole post itself (all pictures, same rules as in the app).
+    // Its titles replace the suggestions found on this page; if it cannot read the post, the suggestions from this page stay.
+    let srv = null, srvFor = '';
+    function askServer(onPick) {
+      const id = igId(location.href);
+      if (!id || srvFor === id) return;
+      srvFor = id; srv = null;
+      call('apiIgBeitrag', [location.href]).then((r) => {
+        if (srvFor !== id || !r || !r.cand || !r.cand.length) return;
+        srv = r.cand;
+        const have = srv.filter((c) => c.inList).length;
+        if (ocrInfo) ocrInfo.textContent = T('Titles from the whole post: ', 'Titel aus dem ganzen Beitrag: ') + (srv.length - have) + (have ? T(' · already in your list: ', ' · schon in deiner Liste: ') + have : '');
+        if (!searched) fillChips(onPick);
+      }, () => {});
+    }
     function fillChips(onPick) {
       if (!chipBox) return;
+      askServer(onPick);
       const who = authors();
-      const list = candidates(texts(), ocrTexts).filter((t) => blocked.indexOf(t.toLowerCase()) < 0 && !isAuthor(t, who));
+      const found = srv ? srv.filter((c) => !c.inList).map((c) => c.title) : candidates(texts(), ocrTexts);
+      const list = found.filter((t) => blocked.indexOf(t.toLowerCase()) < 0 && !isAuthor(t, who));
       chipBox.innerHTML = '';
       if (!list.length) chipBox.appendChild(mk('div', 'm', T('No title found in the text – type it in, or swipe to the next picture.', 'Kein Titel im Text gefunden – tipp ihn ein oder wisch zum nächsten Bild.')));
       list.forEach((t) => chipBox.appendChild(chip(t, onPick)));

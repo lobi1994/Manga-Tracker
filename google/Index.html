@@ -1391,7 +1391,7 @@ applyPage(); applyLang(); reload(false);
 <script>
 /* App version shown at the bottom of every page; raise it with every update and note it in the change log */
 (function(){
-  var APP_VERSION = 'v2.11.1', APP_DATE = '14.11.2026';
+  var APP_VERSION = 'v2.11.2', APP_DATE = '14.11.2026';
   var f = document.createElement('div');
   f.id = 'appVersion';
   f.textContent = 'Manga Tracker ' + APP_VERSION + ' \u00b7 ' + APP_DATE;
@@ -2275,7 +2275,7 @@ applyPage(); applyLang(); reload(false);
     ch: function (n) { return (de() ? 'Kap. ' : 'ch. ') + n; }, done: ['completed', 'abgeschlossen'],
     searchPh: ['Title missing or wrong? Search here', 'Titel fehlt oder falsch? Hier suchen'], search: ['Search', 'Suchen'],
     noHit: ['Nothing found for this title.', 'Zu diesem Titel wurde nichts gefunden.'],
-    nohit: ['Not found on AniList. Add it with this title, or search below.', 'Bei AniList nicht gefunden. Mit diesem Titel hinzuf\u00fcgen oder unten suchen.'],
+    nohit: ['Not found on AniList \u2013 title as written in the post.', 'Bei AniList nicht gefunden \u2013 Titel wie im Beitrag.'],
     perPost: function (n) { return de() ? 'laut Beitrag: Kap. ' + n : 'per post: ch. ' + n; },
     inListN: function (n) { return de() ? 'Schon in deiner Liste (' + n + '):' : 'Already in your list (' + n + '):'; },
     st: { offen: ['open', 'offen'], erledigt: ['done', 'erledigt'], verworfen: ['not interested', 'kein Interesse'] }
