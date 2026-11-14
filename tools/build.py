@@ -70,29 +70,35 @@ rep('const KEY=<?!= JSON.stringify(key) ?>;', 'const KEY=window.MT_CFG?MT_CFG.k:
 rep('const run=(fn,...a)=>new Promise((res,rej)=>google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn](KEY,...a));',
     'const run=(fn,...a)=>window.mtCall(fn,a);')
 # Show the page only when all add-ons (new layout, style, header) have run - no flash of the old design
-# Never show an old version: before the page becomes visible it asks GitHub for the current version number
-# (version.json, tiny, not cached). If a newer one is out, the new page is fetched, put into the device cache
-# and loaded - all while the page is still hidden. Without a connection the saved page is shown after 0.7 s.
+# Old versions: the page asks GitHub for the current version number (version.json, tiny, not cached).
+# The page is shown as soon as it is built - it does not wait for that answer (v2.10.4: on the iPad the wait
+# took seconds, because timers hardly run while iOS still shows the start picture of a home-screen app).
+# If a newer version is out, the new page is put into the device cache at once and loaded if the answer
+# comes early (before you touch anything, within 4 s); otherwise it is simply there at the next start.
 VERSION = re.search(r"APP_VERSION = '([^']+)'", html_src).group(1)
 (ROOT / 'version.json').write_text('{"v":"%s"}\n' % VERSION, encoding='utf-8')
 rep('<title>Manga Tracker</title>\n', '<title>Manga Tracker</title>\n'
     '<style>html:not(.mt-ready) body{visibility:hidden}</style>\n'
-    '<script>window.mtMarks=[];window.mtMark=function(n){window.mtMarks.push([n,performance.now()])};(function(){var V="' + VERSION + '",d=document.documentElement,busy=false,done=false;\n'
-    'function show(){if(!busy){d.classList.add("mt-ready");if(!window.mtShownAt)window.mtShownAt=performance.now()}}\n'
-    'var chk=fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.json():null}).then(function(j){\n'
+    '<script>window.mtMarks=[];window.mtMark=function(n){window.mtMarks.push([n,performance.now()])};(function(){var V="' + VERSION + '",d=document.documentElement,hold=false,want=false,touched=false;\n'
+    'var D=window.mtDiag={vis0:document.visibilityState,visAt:null,chkAt:null,gap:0,gapAt:0},hb=performance.now();\n'
+    'setInterval(function(){var n=performance.now();if(n-hb>D.gap){D.gap=n-hb;D.gapAt=hb}hb=n},100);\n'
+    'document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible"&&D.visAt==null)D.visAt=performance.now()});\n'
+    '["pointerdown","keydown","touchstart"].forEach(function(e){addEventListener(e,function(){touched=true},{capture:true,passive:true})});\n'
+    'function reveal(){d.classList.add("mt-ready");if(!window.mtShownAt)window.mtShownAt=performance.now()}\n'
+    '/* called at the end of the page, when everything is built */\n'
+    'window.mtShow=function(){want=true;if(!hold)reveal()};\n'
+    'fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.json():null}).then(function(j){\n'
+    '  D.chkAt=performance.now();\n'
     '  if(!j||!j.v||j.v===V||!window.caches)return;\n'
-    '  if(done)return;\n'
     '  try{if(sessionStorage.getItem("mt-upd")===j.v)return;sessionStorage.setItem("mt-upd",j.v)}catch(e){return}\n'
-    '  busy=true;\n'
+    '  var early=!window.mtShownAt;hold=early;\n'
     '  return fetch("index.html?v="+encodeURIComponent(j.v),{cache:"reload"}).then(function(r){\n'
     '    if(!r.ok)throw 0;\n'
     '    return caches.keys().then(function(ks){ks=ks.filter(function(k){return k.indexOf("mt-shell")===0});if(!ks.length)ks=["mt-shell-v2"];\n'
     '      return Promise.all(ks.map(function(k){return caches.open(k).then(function(c){return c.put("index.html",r.clone())})}))});\n'
-    '  }).then(function(){location.reload()});\n'
-    '}).catch(function(){busy=false;if(done)show()});\n'
-    '/* called at the end of the page: show it once the version is checked, or after 0.7 s at the latest */\n'
-    'window.mtShow=function(){var t=setTimeout(function(){done=true;show()},700);chk.then(function(){clearTimeout(t);done=true;show()})};\n'
-    'setTimeout(function(){busy=false;d.classList.add("mt-ready")},6000);})()</script>\n')
+    '  }).then(function(){if(early||(!touched&&performance.now()-window.mtShownAt<4000))location.reload()});\n'
+    '}).catch(function(){hold=false;if(want)reveal()});\n'
+    'setTimeout(function(){hold=false;reveal()},6000);})()</script>\n')
 rep('</body>', '<script>window.mtShow()</script>\n</body>')
 sw = (ROOT / 'sw.js').read_text(encoding='utf-8')
 sw = re.sub(r"var VERSION = '[^']*';", "var VERSION = '%s';" % VERSION, sw)

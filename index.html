@@ -8,22 +8,26 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Manga Tracker</title>
 <style>html:not(.mt-ready) body{visibility:hidden}</style>
-<script>window.mtMarks=[];window.mtMark=function(n){window.mtMarks.push([n,performance.now()])};(function(){var V="v2.10.3",d=document.documentElement,busy=false,done=false;
-function show(){if(!busy){d.classList.add("mt-ready");if(!window.mtShownAt)window.mtShownAt=performance.now()}}
-var chk=fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.json():null}).then(function(j){
+<script>window.mtMarks=[];window.mtMark=function(n){window.mtMarks.push([n,performance.now()])};(function(){var V="v2.10.4",d=document.documentElement,hold=false,want=false,touched=false;
+var D=window.mtDiag={vis0:document.visibilityState,visAt:null,chkAt:null,gap:0,gapAt:0},hb=performance.now();
+setInterval(function(){var n=performance.now();if(n-hb>D.gap){D.gap=n-hb;D.gapAt=hb}hb=n},100);
+document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible"&&D.visAt==null)D.visAt=performance.now()});
+["pointerdown","keydown","touchstart"].forEach(function(e){addEventListener(e,function(){touched=true},{capture:true,passive:true})});
+function reveal(){d.classList.add("mt-ready");if(!window.mtShownAt)window.mtShownAt=performance.now()}
+/* called at the end of the page, when everything is built */
+window.mtShow=function(){want=true;if(!hold)reveal()};
+fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.json():null}).then(function(j){
+  D.chkAt=performance.now();
   if(!j||!j.v||j.v===V||!window.caches)return;
-  if(done)return;
   try{if(sessionStorage.getItem("mt-upd")===j.v)return;sessionStorage.setItem("mt-upd",j.v)}catch(e){return}
-  busy=true;
+  var early=!window.mtShownAt;hold=early;
   return fetch("index.html?v="+encodeURIComponent(j.v),{cache:"reload"}).then(function(r){
     if(!r.ok)throw 0;
     return caches.keys().then(function(ks){ks=ks.filter(function(k){return k.indexOf("mt-shell")===0});if(!ks.length)ks=["mt-shell-v2"];
       return Promise.all(ks.map(function(k){return caches.open(k).then(function(c){return c.put("index.html",r.clone())})}))});
-  }).then(function(){location.reload()});
-}).catch(function(){busy=false;if(done)show()});
-/* called at the end of the page: show it once the version is checked, or after 0.7 s at the latest */
-window.mtShow=function(){var t=setTimeout(function(){done=true;show()},700);chk.then(function(){clearTimeout(t);done=true;show()})};
-setTimeout(function(){busy=false;d.classList.add("mt-ready")},6000);})()</script>
+  }).then(function(){if(early||(!touched&&performance.now()-window.mtShownAt<4000))location.reload()});
+}).catch(function(){hold=false;if(want)reveal()});
+setTimeout(function(){hold=false;reveal()},6000);})()</script>
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
@@ -1555,7 +1559,7 @@ window.mtMark&&mtMark(4);
 window.mtMark&&mtMark(5);
 /* App version shown at the bottom of every page; raise it with every update and note it in the change log */
 (function(){
-  var APP_VERSION = 'v2.10.3', APP_DATE = '14.11.2026';
+  var APP_VERSION = 'v2.10.4', APP_DATE = '14.11.2026';
   var f = document.createElement('div');
   f.id = 'appVersion';
   f.textContent = 'Manga Tracker ' + APP_VERSION + ' \u00b7 ' + APP_DATE;
@@ -1612,12 +1616,18 @@ window.mtMark&&mtMark(7);
       var n = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {}, q = window.mtReq || {};
       var d = function (name, v) { if (v != null && v > 0) p.push(name + ' ' + fmt(v)); };
       d('worker', n.workerStart); d(de() ? 'Seite angefragt' : 'page requested', n.requestStart); d(de() ? 'Seite da' : 'page received', n.responseEnd);
-      d(de() ? 'Seite aufgebaut' : 'page built', n.domInteractive); d(de() ? 'davon erste Karten zeichnen' : 'of which drawing the first cards', window.mtDrawMs); d(de() ? 'ganze Liste zeichnen' : 'drawing the whole list', window.mtDraw2Ms); if (window.mtMarks && window.mtMarks.length) {
+      d(de() ? 'Seite aufgebaut' : 'page built', n.domInteractive); d(de() ? 'davon erste Karten zeichnen' : 'of which drawing the first cards', window.mtDrawMs); d(de() ? 'ganze Liste zeichnen' : 'drawing the whole list', window.mtDraw2Ms); d(de() ? 'ganze Liste ab' : 'whole list from', window.mtDraw2At); if (window.mtMarks && window.mtMarks.length) {
         // the three slowest parts of the page (number = script block), to find what holds up the start
         var m = window.mtMarks, g = [];
         for (var k = 0; k < m.length; k++) g.push([m[k][0], (k + 1 < m.length ? m[k + 1][1] : (n.domInteractive || m[k][1])) - m[k][1]]);
         g.sort(function (a, b) { return b[1] - a[1]; });
         p.push((de() ? 'langsamste Bl\u00f6cke: ' : 'slowest blocks: ') + g.slice(0, 3).map(function (x) { return '#' + x[0] + ' ' + fmt(x[1]); }).join(', '));
+      }
+      var D = window.mtDiag;
+      if (D) {
+        p.push((de() ? 'beim Start ' : 'at start ') + D.vis0); d(de() ? 'im Vordergrund ab' : 'in front from', D.visAt);
+        d(de() ? 'Versionspr\u00fcfung fertig' : 'version check done', D.chkAt);
+        if (D.gap > 300) p.push((de() ? 'l\u00e4ngste Pause ' : 'longest stall ') + fmt(D.gap) + (de() ? ' ab ' : ' from ') + fmt(D.gapAt));
       }
       d(de() ? 'Anfrage gesendet' : 'request sent', q.sent); d(de() ? 'Antwort da' : 'answer received', q.back);
     }
@@ -2433,7 +2443,11 @@ window.mtMark&&mtMark(16);
   window.mtBoot=false; window.mtLite=true; renderAll(); void document.body.offsetHeight;
   window.mtDrawMs=performance.now()-t;
   row=full;
-  setTimeout(function(){var t2=performance.now();window.mtLite=false;renderAll();void document.body.offsetHeight;window.mtDraw2Ms=performance.now()-t2},30);
+  var did=false;
+  function rest(){if(did)return;did=true;var t2=performance.now();window.mtLite=false;renderAll();void document.body.offsetHeight;window.mtDraw2Ms=performance.now()-t2;window.mtDraw2At=t2}
+  // whichever comes first (timers can be held back by iOS while the app is still starting)
+  setTimeout(rest,30); try{requestAnimationFrame(function(){setTimeout(rest,0)})}catch(e){}
+  document.addEventListener("visibilitychange",rest); window.addEventListener("pageshow",rest);
 })();
 </script>
 <script>window.mtShow()</script>

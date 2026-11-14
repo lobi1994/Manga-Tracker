@@ -1352,7 +1352,7 @@ applyPage(); applyLang(); reload(false);
 <script>
 /* App version shown at the bottom of every page; raise it with every update and note it in the change log */
 (function(){
-  var APP_VERSION = 'v2.10.3', APP_DATE = '14.11.2026';
+  var APP_VERSION = 'v2.10.4', APP_DATE = '14.11.2026';
   var f = document.createElement('div');
   f.id = 'appVersion';
   f.textContent = 'Manga Tracker ' + APP_VERSION + ' \u00b7 ' + APP_DATE;
@@ -1407,12 +1407,18 @@ applyPage(); applyLang(); reload(false);
       var n = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {}, q = window.mtReq || {};
       var d = function (name, v) { if (v != null && v > 0) p.push(name + ' ' + fmt(v)); };
       d('worker', n.workerStart); d(de() ? 'Seite angefragt' : 'page requested', n.requestStart); d(de() ? 'Seite da' : 'page received', n.responseEnd);
-      d(de() ? 'Seite aufgebaut' : 'page built', n.domInteractive); d(de() ? 'davon erste Karten zeichnen' : 'of which drawing the first cards', window.mtDrawMs); d(de() ? 'ganze Liste zeichnen' : 'drawing the whole list', window.mtDraw2Ms); if (window.mtMarks && window.mtMarks.length) {
+      d(de() ? 'Seite aufgebaut' : 'page built', n.domInteractive); d(de() ? 'davon erste Karten zeichnen' : 'of which drawing the first cards', window.mtDrawMs); d(de() ? 'ganze Liste zeichnen' : 'drawing the whole list', window.mtDraw2Ms); d(de() ? 'ganze Liste ab' : 'whole list from', window.mtDraw2At); if (window.mtMarks && window.mtMarks.length) {
         // the three slowest parts of the page (number = script block), to find what holds up the start
         var m = window.mtMarks, g = [];
         for (var k = 0; k < m.length; k++) g.push([m[k][0], (k + 1 < m.length ? m[k + 1][1] : (n.domInteractive || m[k][1])) - m[k][1]]);
         g.sort(function (a, b) { return b[1] - a[1]; });
         p.push((de() ? 'langsamste Bl\u00f6cke: ' : 'slowest blocks: ') + g.slice(0, 3).map(function (x) { return '#' + x[0] + ' ' + fmt(x[1]); }).join(', '));
+      }
+      var D = window.mtDiag;
+      if (D) {
+        p.push((de() ? 'beim Start ' : 'at start ') + D.vis0); d(de() ? 'im Vordergrund ab' : 'in front from', D.visAt);
+        d(de() ? 'Versionspr\u00fcfung fertig' : 'version check done', D.chkAt);
+        if (D.gap > 300) p.push((de() ? 'l\u00e4ngste Pause ' : 'longest stall ') + fmt(D.gap) + (de() ? ' ab ' : ' from ') + fmt(D.gapAt));
       }
       d(de() ? 'Anfrage gesendet' : 'request sent', q.sent); d(de() ? 'Antwort da' : 'answer received', q.back);
     }
@@ -2219,7 +2225,11 @@ applyPage(); applyLang(); reload(false);
   window.mtBoot=false; window.mtLite=true; renderAll(); void document.body.offsetHeight;
   window.mtDrawMs=performance.now()-t;
   row=full;
-  setTimeout(function(){var t2=performance.now();window.mtLite=false;renderAll();void document.body.offsetHeight;window.mtDraw2Ms=performance.now()-t2},30);
+  var did=false;
+  function rest(){if(did)return;did=true;var t2=performance.now();window.mtLite=false;renderAll();void document.body.offsetHeight;window.mtDraw2Ms=performance.now()-t2;window.mtDraw2At=t2}
+  // whichever comes first (timers can be held back by iOS while the app is still starting)
+  setTimeout(rest,30); try{requestAnimationFrame(function(){setTimeout(rest,0)})}catch(e){}
+  document.addEventListener("visibilitychange",rest); window.addEventListener("pageshow",rest);
 })();
 </script>
 </body>
