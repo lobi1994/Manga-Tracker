@@ -1352,7 +1352,7 @@ applyPage(); applyLang(); reload(false);
 <script>
 /* App version shown at the bottom of every page; raise it with every update and note it in the change log */
 (function(){
-  var APP_VERSION = 'v2.10.2', APP_DATE = '14.11.2026';
+  var APP_VERSION = 'v2.10.3', APP_DATE = '14.11.2026';
   var f = document.createElement('div');
   f.id = 'appVersion';
   f.textContent = 'Manga Tracker ' + APP_VERSION + ' \u00b7 ' + APP_DATE;
@@ -1407,7 +1407,14 @@ applyPage(); applyLang(); reload(false);
       var n = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {}, q = window.mtReq || {};
       var d = function (name, v) { if (v != null && v > 0) p.push(name + ' ' + fmt(v)); };
       d('worker', n.workerStart); d(de() ? 'Seite angefragt' : 'page requested', n.requestStart); d(de() ? 'Seite da' : 'page received', n.responseEnd);
-      d(de() ? 'Seite aufgebaut' : 'page built', n.domInteractive); d(de() ? 'davon erste Karten zeichnen' : 'of which drawing the first cards', window.mtDrawMs); d(de() ? 'ganze Liste zeichnen' : 'drawing the whole list', window.mtDraw2Ms); d(de() ? 'Anfrage gesendet' : 'request sent', q.sent); d(de() ? 'Antwort da' : 'answer received', q.back);
+      d(de() ? 'Seite aufgebaut' : 'page built', n.domInteractive); d(de() ? 'davon erste Karten zeichnen' : 'of which drawing the first cards', window.mtDrawMs); d(de() ? 'ganze Liste zeichnen' : 'drawing the whole list', window.mtDraw2Ms); if (window.mtMarks && window.mtMarks.length) {
+        // the three slowest parts of the page (number = script block), to find what holds up the start
+        var m = window.mtMarks, g = [];
+        for (var k = 0; k < m.length; k++) g.push([m[k][0], (k + 1 < m.length ? m[k + 1][1] : (n.domInteractive || m[k][1])) - m[k][1]]);
+        g.sort(function (a, b) { return b[1] - a[1]; });
+        p.push((de() ? 'langsamste Bl\u00f6cke: ' : 'slowest blocks: ') + g.slice(0, 3).map(function (x) { return '#' + x[0] + ' ' + fmt(x[1]); }).join(', '));
+      }
+      d(de() ? 'Anfrage gesendet' : 'request sent', q.sent); d(de() ? 'Antwort da' : 'answer received', q.back);
     }
     label.textContent = p.join(' \u00b7 ');
   }
@@ -1964,6 +1971,8 @@ applyPage(); applyLang(); reload(false);
   // Fonts for both styles
   var fl = document.createElement('link'); fl.rel = 'stylesheet';
   fl.href = 'https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Yuji+Syuku&family=M+PLUS+Rounded+1c:wght@400;700&family=Zen+Maru+Gothic:wght@400;700&display=swap';
+  // v2.10.3: must not hold up the start - in Safari a style sheet that is still loading makes the following scripts wait
+  fl.media = 'print'; fl.onload = function () { fl.media = 'all'; };
   document.head.appendChild(fl);
 
   var P = {

@@ -8,7 +8,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Manga Tracker</title>
 <style>html:not(.mt-ready) body{visibility:hidden}</style>
-<script>(function(){var V="v2.10.2",d=document.documentElement,busy=false,done=false;
+<script>window.mtMarks=[];window.mtMark=function(n){window.mtMarks.push([n,performance.now()])};(function(){var V="v2.10.3",d=document.documentElement,busy=false,done=false;
 function show(){if(!busy){d.classList.add("mt-ready");if(!window.mtShownAt)window.mtShownAt=performance.now()}}
 var chk=fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.json():null}).then(function(j){
   if(!j||!j.v||j.v===V||!window.caches)return;
@@ -551,6 +551,7 @@ details.box summary{cursor:pointer;font-weight:700}
 <div class="toast" id="toast" hidden></div>
 
 <script>
+window.mtMark&&mtMark(1);
 const KEY=window.MT_CFG?MT_CFG.k:"";
 const DEF_CATS={"Murim":"--murim","Kultivation (Manhua)":"--kult","Fantasy":"--fantasy","Hunter / System / Game":"--hunter"};
 const PALETTE=["--c1","--c2","--c3","--c4","--c5","--c6"];
@@ -1420,6 +1421,7 @@ window.addEventListener("pageshow",e=>{if(e.persisted)autoReload()});
 applyPage(); applyLang(); reload(false);
 </script>
 <script>
+window.mtMark&&mtMark(2);
 /* 8-week reminder for series the app cannot check itself (dropped series excluded) */
 (function(){
   var VISIT_MS = 56 * 86400000;
@@ -1471,6 +1473,7 @@ applyPage(); applyLang(); reload(false);
 })();
 </script>
 <script>
+window.mtMark&&mtMark(3);
 /* Release day: show "continue" only once the usual release day has passed since you last read */
 (function(){
   I18N.en.waitNext = function (n, d) { return 'No new chapter yet \u00b7 ch. ' + n + ' expected ' + d; };
@@ -1513,6 +1516,7 @@ applyPage(); applyLang(); reload(false);
 })();
 </script>
 <script>
+window.mtMark&&mtMark(4);
 /* Release day can also be set by hand in the edit dialog */
 (function(){
   I18N.en.relDayLbl = 'Release day';
@@ -1548,9 +1552,10 @@ applyPage(); applyLang(); reload(false);
 })();
 </script>
 <script>
+window.mtMark&&mtMark(5);
 /* App version shown at the bottom of every page; raise it with every update and note it in the change log */
 (function(){
-  var APP_VERSION = 'v2.10.2', APP_DATE = '14.11.2026';
+  var APP_VERSION = 'v2.10.3', APP_DATE = '14.11.2026';
   var f = document.createElement('div');
   f.id = 'appVersion';
   f.textContent = 'Manga Tracker ' + APP_VERSION + ' \u00b7 ' + APP_DATE;
@@ -1559,6 +1564,7 @@ applyPage(); applyLang(); reload(false);
 })();
 </script>
 <script>
+window.mtMark&&mtMark(6);
 /* v2.6.1: In the home screen app, iOS opens links in a small built-in browser where Safari extensions
  * (the reading overlay) do not run. Open reading sites in the real Safari instead (x-safari-https://). */
 (function(){
@@ -1584,6 +1590,7 @@ applyPage(); applyLang(); reload(false);
 })();
 </script>
 <script>
+window.mtMark&&mtMark(7);
 /* Faster start (v2.10): the list saved on this device is shown right away and can be used at once.
  * Every change is also saved on the device, so the saved list is never older than your last tap.
  * The fresh list replaces it only where something is different. Also measures load times. */
@@ -1605,7 +1612,14 @@ applyPage(); applyLang(); reload(false);
       var n = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {}, q = window.mtReq || {};
       var d = function (name, v) { if (v != null && v > 0) p.push(name + ' ' + fmt(v)); };
       d('worker', n.workerStart); d(de() ? 'Seite angefragt' : 'page requested', n.requestStart); d(de() ? 'Seite da' : 'page received', n.responseEnd);
-      d(de() ? 'Seite aufgebaut' : 'page built', n.domInteractive); d(de() ? 'davon erste Karten zeichnen' : 'of which drawing the first cards', window.mtDrawMs); d(de() ? 'ganze Liste zeichnen' : 'drawing the whole list', window.mtDraw2Ms); d(de() ? 'Anfrage gesendet' : 'request sent', q.sent); d(de() ? 'Antwort da' : 'answer received', q.back);
+      d(de() ? 'Seite aufgebaut' : 'page built', n.domInteractive); d(de() ? 'davon erste Karten zeichnen' : 'of which drawing the first cards', window.mtDrawMs); d(de() ? 'ganze Liste zeichnen' : 'drawing the whole list', window.mtDraw2Ms); if (window.mtMarks && window.mtMarks.length) {
+        // the three slowest parts of the page (number = script block), to find what holds up the start
+        var m = window.mtMarks, g = [];
+        for (var k = 0; k < m.length; k++) g.push([m[k][0], (k + 1 < m.length ? m[k + 1][1] : (n.domInteractive || m[k][1])) - m[k][1]]);
+        g.sort(function (a, b) { return b[1] - a[1]; });
+        p.push((de() ? 'langsamste Bl\u00f6cke: ' : 'slowest blocks: ') + g.slice(0, 3).map(function (x) { return '#' + x[0] + ' ' + fmt(x[1]); }).join(', '));
+      }
+      d(de() ? 'Anfrage gesendet' : 'request sent', q.sent); d(de() ? 'Antwort da' : 'answer received', q.back);
     }
     label.textContent = p.join(' \u00b7 ');
   }
@@ -1650,6 +1664,7 @@ applyPage(); applyLang(); reload(false);
 })();
 </script>
 <script>
+window.mtMark&&mtMark(8);
 /* Reading site gone: mark it in the detail view, search for the title, change the link */
 (function(){
   var gone = {};
@@ -1742,6 +1757,7 @@ applyPage(); applyLang(); reload(false);
 })();
 </script>
 <script>
+window.mtMark&&mtMark(9);
 /* Completed series: no release day, no "new today". Latest chapter shown even without a read chapter. */
 (function(){
   I18N.en.latestOnly = function (n) { return 'latest chapter ' + n; };
@@ -1767,6 +1783,7 @@ applyPage(); applyLang(); reload(false);
 })();
 </script>
 <script>
+window.mtMark&&mtMark(10);
 /* Keep "Continue" and "Overview" on the same site */
 (function(){
   I18N.en.mixPill = 'Links on different sites';
@@ -1812,6 +1829,7 @@ applyPage(); applyLang(); reload(false);
 })();
 </script>
 <script>
+window.mtMark&&mtMark(11);
 /* Clear button (x) on the right of text fields */
 (function(){
   I18N.en.clearField = 'Clear field';
@@ -1856,6 +1874,7 @@ applyPage(); applyLang(); reload(false);
 })();
 </script>
 <script>
+window.mtMark&&mtMark(12);
 /* Latest released chapter can be corrected by hand in the edit dialog */
 (function(){
   I18N.en.latestField = 'Latest released chapter';
@@ -1890,6 +1909,7 @@ applyPage(); applyLang(); reload(false);
   <div id="addRes"></div>
 </div></dialog>
 <script>
+window.mtMark&&mtMark(13);
 /* v2.0: icon header, "+" dialog for links, saved filters, search clear button, new card layout, detail first */
 (function(){
   var L = function (en, de) { return { en: en, de: de }; };
@@ -2147,6 +2167,7 @@ applyPage(); applyLang(); reload(false);
 })();
 </script>
 <script>
+window.mtMark&&mtMark(14);
 /* v2.1: styles (Screentone, Murim, Classic), light/dark switch per device, background from the top-rated covers */
 (function(){
   var LK = 'mt-look';
@@ -2162,6 +2183,8 @@ applyPage(); applyLang(); reload(false);
   // Fonts for both styles
   var fl = document.createElement('link'); fl.rel = 'stylesheet';
   fl.href = 'https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Yuji+Syuku&family=M+PLUS+Rounded+1c:wght@400;700&family=Zen+Maru+Gothic:wght@400;700&display=swap';
+  // v2.10.3: must not hold up the start - in Safari a style sheet that is still loading makes the following scripts wait
+  fl.media = 'print'; fl.onload = function () { fl.media = 'all'; };
   document.head.appendChild(fl);
 
   var P = {
@@ -2292,6 +2315,7 @@ applyPage(); applyLang(); reload(false);
   <div class="row" style="justify-content:flex-end"><button type="button" class="primary" id="lkClose"></button></div>
 </div></dialog>
 <script>
+window.mtMark&&mtMark(15);
 /* v2.2: own background picture (strong at the top, fading out downwards) and an "Appearance" window */
 (function(){
   if (!window.mtLook) return;
@@ -2400,6 +2424,7 @@ applyPage(); applyLang(); reload(false);
 })();
 </script>
 <script>
+window.mtMark&&mtMark(16);
 /* v2.10.2: all add-ons are loaded - now draw the list once */
 (function(){
   // First only the cards at the top (what fits on the screen), right after that the whole list

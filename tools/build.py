@@ -77,7 +77,7 @@ VERSION = re.search(r"APP_VERSION = '([^']+)'", html_src).group(1)
 (ROOT / 'version.json').write_text('{"v":"%s"}\n' % VERSION, encoding='utf-8')
 rep('<title>Manga Tracker</title>\n', '<title>Manga Tracker</title>\n'
     '<style>html:not(.mt-ready) body{visibility:hidden}</style>\n'
-    '<script>(function(){var V="' + VERSION + '",d=document.documentElement,busy=false,done=false;\n'
+    '<script>window.mtMarks=[];window.mtMark=function(n){window.mtMarks.push([n,performance.now()])};(function(){var V="' + VERSION + '",d=document.documentElement,busy=false,done=false;\n'
     'function show(){if(!busy){d.classList.add("mt-ready");if(!window.mtShownAt)window.mtShownAt=performance.now()}}\n'
     'var chk=fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.json():null}).then(function(j){\n'
     '  if(!j||!j.v||j.v===V||!window.caches)return;\n'
@@ -99,6 +99,10 @@ sw = re.sub(r"var VERSION = '[^']*';", "var VERSION = '%s';" % VERSION, sw)
 assert VERSION in sw
 (ROOT / 'sw.js').write_text(sw, encoding='utf-8')
 assert '<?' not in h, 'template tag left'
+# Number every script block of the page body, so the app can show which block is slow at the start
+_head, _body = h.split('<body>', 1)
+_parts = _body.split('<script>\n')
+h = _head + '<body>' + _parts[0] + ''.join('<script>\nwindow.mtMark&&mtMark(%d);\n' % (i + 1) + part for i, part in enumerate(_parts[1:]))
 
 setup = (ROOT / 'tools' / 'setup.html').read_text(encoding='utf-8')
 rep('<body>\n', '<body>\n' + setup, 1)
