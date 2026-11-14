@@ -2494,6 +2494,7 @@ window.mtMark&&mtMark(16);
     searchPh: ['Title missing or wrong? Search here', 'Titel fehlt oder falsch? Hier suchen'], search: ['Search', 'Suchen'],
     noHit: ['Nothing found for this title.', 'Zu diesem Titel wurde nichts gefunden.'],
     nohit: ['Not found on AniList. Add it with this title, or search below.', 'Bei AniList nicht gefunden. Mit diesem Titel hinzuf\u00fcgen oder unten suchen.'],
+    perPost: function (n) { return de() ? 'laut Beitrag: Kap. ' + n : 'per post: ch. ' + n; },
     inListN: function (n) { return de() ? 'Schon in deiner Liste (' + n + '):' : 'Already in your list (' + n + '):'; },
     st: { offen: ['open', 'offen'], erledigt: ['done', 'erledigt'], verworfen: ['not interested', 'kein Interesse'] }
   };
@@ -2513,7 +2514,9 @@ window.mtMark&&mtMark(16);
   function meta(c) {
     var p = [];
     if (c.type) p.push(esc(c.type)); if (c.year) p.push(esc(c.year));
-    if (c.latest) p.push(tx('ch')(esc(fmtCh(Number(c.latest))))); if (c.completed) p.push(tx('done'));
+    if (c.latest) p.push(tx('ch')(esc(fmtCh(Number(c.latest)))));
+    else if (c.post) p.push(tx('perPost')(esc(c.post)));       // v2.11.1: no number from the database - show the one from the post, clearly marked
+    if (c.completed) p.push(tx('done'));
     return p.join(' \u00b7 ');
   }
   function card(c, attrs, state) {

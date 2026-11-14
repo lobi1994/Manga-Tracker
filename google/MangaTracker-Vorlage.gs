@@ -2356,6 +2356,28 @@ function igSucheViele_(qs) {
   return out;
 }
 
+/** Kapitelzahl, die im Beitrag bei diesem Titel steht (z. B. „144+“) – nur als Hinweis „laut Beitrag“, sie kann veraltet sein.
+ *  Sucht den Titel im gelesenen Text und nimmt die erste Kapitelangabe in den Zeilen danach (bis zum nächsten Titel höchstens 6 Zeilen). */
+function igKapitelLautBeitrag_(text, q) {
+  const lines = String(text || '').split(/\n+/).map(function (l) { return l.trim(); }).filter(Boolean);
+  const qn = titelNorm_(q); if (!qn) return '';
+  for (let i = 0; i < lines.length; i++) {
+    for (let k = 1; k <= 3 && i + k <= lines.length; k++) {
+      const n = titelNorm_(lines.slice(i, i + k).join(' '));
+      if (!n || (n !== qn && n.indexOf(qn) < 0)) continue;
+      const mitWort = /(\d{1,4})\s*(\+?)\s*(?:chapters?|chaps?|chs?\.?|episodes?|eps?\.?|kapitel)\b/i, wortZahl = /(?:chapters?|chaps?|ch\.?|episodes?|kapitel)\s*[:#]?\s*(\d{1,4})(\+?)/i;
+      let m = lines.slice(i, i + k).join(' ').match(mitWort) || lines.slice(i, i + k).join(' ').match(wortZahl);     // steht in der Titelzeile selbst
+      for (let j = i + k; !m && j < Math.min(lines.length, i + k + 4); j++) {
+        const l = lines[j], rest = igClean_(l);
+        if ((rest.match(/[A-Za-z]{2,}/g) || []).length >= 2 && !igIsInfo_(rest)) break;                              // hier beginnt schon der nächste Titel
+        m = l.match(mitWort) || l.match(wortZahl) || (/^0\d$/.test(l) ? null : l.match(/^(\d{1,4})(\+?)$/));       // „144+“ allein in der Zeile (nicht die laufende Nummer „02“)
+      }
+      return m ? m[1] + (m[2] || '') : '';
+    }
+  }
+  return '';
+}
+
 /** „STELLAR SWORDMASTER“ → „Stellar Swordmaster“ (nur wenn der Text ganz in Großbuchstaben gelesen wurde). */
 function igSchoen_(t) {
   t = String(t || '');
@@ -2422,6 +2444,7 @@ function igLesen_(link, html, ende) {
   };
   quellen.forEach(function (vs, qi) {
     const src = qi < texte.length ? qi + 1 : 0;      // Bildnummer, 0 = Beschreibung
+    const roh = src ? texte[qi] : a.caption;
     const gewaehlt = [];
     vs.map(function (q) { return { q: q, f: fund[titelNorm_(q)] || null, w: worte(q).length }; })
       .filter(function (x) { return x.f && (x.f.p >= 0.9 || x.w >= 2); })
@@ -2431,8 +2454,8 @@ function igLesen_(link, html, ende) {
         gewaehlt.push(x.q);
         const f = x.f, title = f.mine ? f.mine.title : f.title, n = titelNorm_(title);
         if (doppelt[n]) return; doppelt[n] = 1;
-        if (f.mine) cand.push({ q: x.q, title: title, type: '', year: '', latest: f.mine.latest, completed: false, image: f.mine.image || '', link: '', sure: true, inList: title, src: src, state: '' });
-        else cand.push({ q: x.q, title: title, type: f.type, year: f.year, latest: f.latest, completed: f.completed, image: f.image, link: f.link, sure: f.p >= 0.9, inList: eigen[n] ? eigen[n].title : null, src: src, state: '' });
+        if (f.mine) cand.push({ q: x.q, title: title, type: '', year: '', latest: f.mine.latest, completed: false, image: f.mine.image || '', link: '', sure: true, inList: title, src: src, post: igKapitelLautBeitrag_(roh, x.q), state: '' });
+        else cand.push({ q: x.q, title: title, type: f.type, year: f.year, latest: f.latest, completed: f.completed, image: f.image, link: f.link, sure: f.p >= 0.9, inList: eigen[n] ? eigen[n].title : null, src: src, post: igKapitelLautBeitrag_(roh, x.q), state: '' });
       });
     // nicht gefunden, sieht aber nach Titel aus: längste Varianten zuerst, höchstens 4 je Quelle (nur von Bildern)
     if (!src) return;
@@ -2444,7 +2467,7 @@ function igLesen_(link, html, ende) {
         gewaehlt.push(q); rest++;
         const title = igSchoen_(q), n = titelNorm_(title);
         if (doppelt[n]) return; doppelt[n] = 1;
-        cand.push({ q: q, title: title, type: '', year: '', latest: null, completed: false, image: '', link: '', sure: false, nohit: true, inList: null, src: src, state: '' });
+        cand.push({ q: q, title: title, type: '', year: '', latest: null, completed: false, image: '', link: '', sure: false, nohit: true, inList: null, src: src, post: igKapitelLautBeitrag_(roh, q), state: '' });
       });
   });
   const note = Utilities.formatDate(new Date(), TZ, 'dd.MM.yyyy HH:mm') + ' · ' + a.bilder.length + ' Bilder, ' + ocr.length + ' mit Text · '
