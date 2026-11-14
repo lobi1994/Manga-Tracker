@@ -8,7 +8,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Manga Tracker</title>
 <style>html:not(.mt-ready) body{visibility:hidden}</style>
-<script>window.mtMarks=[];window.mtMark=function(n){window.mtMarks.push([n,performance.now()])};(function(){var V="v2.10.4",d=document.documentElement,hold=false,want=false,touched=false;
+<script>window.mtMarks=[];window.mtMark=function(n){window.mtMarks.push([n,performance.now()])};(function(){var V="v2.10.5",d=document.documentElement,hold=false,want=false,touched=false;
 var D=window.mtDiag={vis0:document.visibilityState,visAt:null,chkAt:null,gap:0,gapAt:0},hb=performance.now();
 setInterval(function(){var n=performance.now();if(n-hb>D.gap){D.gap=n-hb;D.gapAt=hb}hb=n},100);
 document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible"&&D.visAt==null)D.visAt=performance.now()});
@@ -780,7 +780,7 @@ function imgUrls(main,src){
 }
 function imgTag(list,extra){
   if(!list.length)return"";
-  return `<img src="${esc(list[0])}"${list.length>1?` data-alt="${esc(list.slice(1).join("|"))}"`:""} alt="" draggable="false" ${extra||""} referrerpolicy="no-referrer" onerror="imgErr(this)">`;
+  return `<img ${window.mtHold?"data-src":"src"}="${esc(list[0])}"${list.length>1?` data-alt="${esc(list.slice(1).join("|"))}"`:""} alt="" draggable="false" ${extra||""} referrerpolicy="no-referrer" onerror="imgErr(this)">`;
 }
 function cover(i,cls,tag){
   tag=tag||"button";
@@ -911,7 +911,7 @@ function renderShelf(){
   if(html===renderShelf.last&&$("shelf").firstChild)return;
   renderShelf.last=html; $("shelf").innerHTML=html;
 }
-let loaded=false; window.mtBoot=true;
+let loaded=false; window.mtBoot=true; window.mtHold=true;   // mtHold (v2.10.5): pictures are loaded only after the first cards are on screen
 function renderAll(){
   renderTabs();renderStats();renderShelf();renderTier();
   const r=items.filter(i=>i.status==="Lese ich gerade").length;
@@ -1559,7 +1559,7 @@ window.mtMark&&mtMark(4);
 window.mtMark&&mtMark(5);
 /* App version shown at the bottom of every page; raise it with every update and note it in the change log */
 (function(){
-  var APP_VERSION = 'v2.10.4', APP_DATE = '14.11.2026';
+  var APP_VERSION = 'v2.10.5', APP_DATE = '14.11.2026';
   var f = document.createElement('div');
   f.id = 'appVersion';
   f.textContent = 'Manga Tracker ' + APP_VERSION + ' \u00b7 ' + APP_DATE;
@@ -1616,7 +1616,7 @@ window.mtMark&&mtMark(7);
       var n = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {}, q = window.mtReq || {};
       var d = function (name, v) { if (v != null && v > 0) p.push(name + ' ' + fmt(v)); };
       d('worker', n.workerStart); d(de() ? 'Seite angefragt' : 'page requested', n.requestStart); d(de() ? 'Seite da' : 'page received', n.responseEnd);
-      d(de() ? 'Seite aufgebaut' : 'page built', n.domInteractive); d(de() ? 'davon erste Karten zeichnen' : 'of which drawing the first cards', window.mtDrawMs); d(de() ? 'ganze Liste zeichnen' : 'drawing the whole list', window.mtDraw2Ms); d(de() ? 'ganze Liste ab' : 'whole list from', window.mtDraw2At); if (window.mtMarks && window.mtMarks.length) {
+      d(de() ? 'Seite aufgebaut' : 'page built', n.domInteractive); d(de() ? 'davon erste Karten zeichnen' : 'of which drawing the first cards', window.mtDrawMs); var S = window.mtSteps || {}; d(de() ? 'erstes Bild ab' : 'first paint from', S.paintAt); d(de() ? 'ganze Liste ab' : 'whole list from', S.listAt); d(de() ? 'Liste rechnen' : 'list script', S.listJs); d(de() ? 'Liste anordnen' : 'list layout', S.listLayout); d('tier', S.tier); if (window.mtMarks && window.mtMarks.length) {
         // the three slowest parts of the page (number = script block), to find what holds up the start
         var m = window.mtMarks, g = [];
         for (var k = 0; k < m.length; k++) g.push([m[k][0], (k + 1 < m.length ? m[k + 1][1] : (n.domInteractive || m[k][1])) - m[k][1]]);
@@ -2298,7 +2298,7 @@ window.mtMark&&mtMark(14);
     var rot = [-4, 3, -2, 4, -3, 2, -5];
     banner.innerHTML = top.map(function (i, k) {
       var u = imgUrls(i.image, i.imageSrc);
-      return '<img alt="" loading="lazy" style="--r:' + rot[k] + 'deg" src="' + esc(u[0]) + '" data-alt="' + esc(u.slice(1).join('|')) + '" onerror="this.remove()">';
+      return '<img alt="" loading="lazy" style="--r:' + rot[k] + 'deg" ' + (window.mtHold ? 'data-src' : 'src') + '="' + esc(u[0]) + '" data-alt="' + esc(u.slice(1).join('|')) + '" onerror="this.remove()">';
     }).join('');
   }
   var baseAll = renderAll;
@@ -2350,7 +2350,7 @@ window.mtMark&&mtMark(15);
     var on = !!(bg && bg.url);
     document.documentElement.classList.toggle('has-bg', on);
     if (on) {
-      if (img.dataset.id !== bg.id) { img.dataset.id = bg.id; img.dataset.tried = ''; img.src = bg.url; }
+      if (img.dataset.id !== bg.id) { img.dataset.id = bg.id; img.dataset.tried = ''; if (window.mtHold) img.setAttribute('data-src', bg.url); else img.src = bg.url; }
       img.onerror = function () { if (!img.dataset.tried && bg && bg.alt) { img.dataset.tried = '1'; img.src = bg.alt; } };
     } else { img.removeAttribute('src'); img.dataset.id = ''; }
     layer.style.opacity = String(strength / 100);
@@ -2443,11 +2443,25 @@ window.mtMark&&mtMark(16);
   window.mtBoot=false; window.mtLite=true; renderAll(); void document.body.offsetHeight;
   window.mtDrawMs=performance.now()-t;
   row=full;
-  var did=false;
-  function rest(){if(did)return;did=true;var t2=performance.now();window.mtLite=false;renderAll();void document.body.offsetHeight;window.mtDraw2Ms=performance.now()-t2;window.mtDraw2At=t2}
-  // whichever comes first (timers can be held back by iOS while the app is still starting)
-  setTimeout(rest,30); try{requestAnimationFrame(function(){setTimeout(rest,0)})}catch(e){}
-  document.addEventListener("visibilitychange",rest); window.addEventListener("pageshow",rest);
+  var T=window.mtSteps={};
+  function rest(){
+    var t2=performance.now(); T.listAt=t2;
+    window.mtLite=true; renderAll(); T.listJs=performance.now()-t2;      // whole list, without the tier page
+    var t3=performance.now(); void document.body.offsetHeight; T.listLayout=performance.now()-t3;
+    setTimeout(function(){var t4=performance.now();window.mtLite=false;renderAll();void document.body.offsetHeight;T.tier=performance.now()-t4},60);
+    window.mtDraw2Ms=performance.now()-t2; window.mtDraw2At=t2;
+  }
+  // 1. first cards are painted  2. their pictures start loading  3. the rest of the list follows
+  var went=false;
+  function afterPaint(){
+    if(went)return; went=true; T.paintAt=performance.now();
+    window.mtHold=false;
+    document.querySelectorAll("img[data-src]").forEach(function(im){im.src=im.getAttribute("data-src");im.removeAttribute("data-src")});
+    renderShelf.last=null;      // the next drawing has real picture addresses
+    setTimeout(rest,200);
+  }
+  try{requestAnimationFrame(function(){requestAnimationFrame(function(){setTimeout(afterPaint,0)})})}catch(e){}
+  setTimeout(afterPaint,1500);
 })();
 </script>
 <script>window.mtShow()</script>
