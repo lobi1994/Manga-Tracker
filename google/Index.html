@@ -684,6 +684,7 @@ function row(i){
   </div>`;
 }
 function renderShelf(){
+  if(window.mtBoot)return;   // v2.10.2: while the page starts, the list is drawn once at the end instead of after every add-on
   const q=norm($("q").value);
   let list=items.filter(i=>inGenre(i)&&inStatus(i)&&(!q||norm(i.title+" "+(i.alt||[]).join(" ")).includes(q)));
   const sort=prefs.sort;
@@ -707,7 +708,7 @@ function renderShelf(){
   if(html===renderShelf.last&&$("shelf").firstChild)return;
   renderShelf.last=html; $("shelf").innerHTML=html;
 }
-let loaded=false;
+let loaded=false; window.mtBoot=true;
 function renderAll(){
   renderTabs();renderStats();renderShelf();renderTier();
   const r=items.filter(i=>i.status==="Lese ich gerade").length;
@@ -731,6 +732,7 @@ $("shelf").addEventListener("change",e=>{
 
 /* ---------- tier list ---------- */
 function renderTier(){
+  if(window.mtBoot||(window.mtLite&&prefs.page!=="tier"))return;
   const rated=items.filter(i=>parseInt(i.rating,10)>0);
   $("tierNote").textContent=t("tierNote",items.length-rated.length)+" "+t("dragHint");
   if(!rated.length){$("tiers").innerHTML=`<div class="empty-state">${loaded?t("tierEmpty"):t("loading")}</div>`;return}
@@ -1350,7 +1352,7 @@ applyPage(); applyLang(); reload(false);
 <script>
 /* App version shown at the bottom of every page; raise it with every update and note it in the change log */
 (function(){
-  var APP_VERSION = 'v2.10.1', APP_DATE = '14.11.2026';
+  var APP_VERSION = 'v2.10.2', APP_DATE = '14.11.2026';
   var f = document.createElement('div');
   f.id = 'appVersion';
   f.textContent = 'Manga Tracker ' + APP_VERSION + ' \u00b7 ' + APP_DATE;
@@ -1405,7 +1407,7 @@ applyPage(); applyLang(); reload(false);
       var n = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {}, q = window.mtReq || {};
       var d = function (name, v) { if (v != null && v > 0) p.push(name + ' ' + fmt(v)); };
       d('worker', n.workerStart); d(de() ? 'Seite angefragt' : 'page requested', n.requestStart); d(de() ? 'Seite da' : 'page received', n.responseEnd);
-      d(de() ? 'Seite aufgebaut' : 'page built', n.domInteractive); d(de() ? 'Anfrage gesendet' : 'request sent', q.sent); d(de() ? 'Antwort da' : 'answer received', q.back);
+      d(de() ? 'Seite aufgebaut' : 'page built', n.domInteractive); d(de() ? 'davon erste Karten zeichnen' : 'of which drawing the first cards', window.mtDrawMs); d(de() ? 'ganze Liste zeichnen' : 'drawing the whole list', window.mtDraw2Ms); d(de() ? 'Anfrage gesendet' : 'request sent', q.sent); d(de() ? 'Antwort da' : 'answer received', q.back);
     }
     label.textContent = p.join(' \u00b7 ');
   }
@@ -2197,6 +2199,18 @@ applyPage(); applyLang(); reload(false);
     + '.lkrange{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}.lkrange input{width:100%;accent-color:var(--accent)}';
   document.head.appendChild(css);
   showBg();
+})();
+</script>
+<script>
+/* v2.10.2: all add-ons are loaded - now draw the list once */
+(function(){
+  // First only the cards at the top (what fits on the screen), right after that the whole list
+  var full=row, n=0, t=performance.now();
+  row=function(i){return n++<24?full(i):""};
+  window.mtBoot=false; window.mtLite=true; renderAll(); void document.body.offsetHeight;
+  window.mtDrawMs=performance.now()-t;
+  row=full;
+  setTimeout(function(){var t2=performance.now();window.mtLite=false;renderAll();void document.body.offsetHeight;window.mtDraw2Ms=performance.now()-t2},30);
 })();
 </script>
 </body>
