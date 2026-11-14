@@ -10,7 +10,7 @@
 <style>html:not(.mt-ready) body{visibility:hidden}</style>
 <script>window.mtMarks=[];window.mtMark=function(n){window.mtMarks.push([n,performance.now()])};(function(){var V="v2.10.6",d=document.documentElement,hold=false,want=false,touched=false;
 var D=window.mtDiag={vis0:document.visibilityState,visAt:null,chkAt:null,gap:0,gapAt:0},hb=performance.now();
-setInterval(function(){var n=performance.now();if(n-hb>D.gap){D.gap=n-hb;D.gapAt=hb}hb=n},100);
+var iv=setInterval(function(){var n=performance.now();if(n>20000){clearInterval(iv);return}if(n-hb>D.gap){D.gap=n-hb;D.gapAt=hb}hb=n},100);
 document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible"&&D.visAt==null)D.visAt=performance.now()});
 ["pointerdown","keydown","touchstart"].forEach(function(e){addEventListener(e,function(){touched=true},{capture:true,passive:true})});
 function reveal(){d.classList.add("mt-ready");if(!window.mtShownAt)window.mtShownAt=performance.now()}
