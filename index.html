@@ -8,7 +8,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Manga Tracker</title>
 <style>html:not(.mt-ready) body{visibility:hidden}</style>
-<script>setTimeout(function(){document.documentElement.classList.add("mt-ready")},2500)</script>
+<script>(function(){var V="v2.10.0",d=document.documentElement,busy=false,done=false;
+function show(){if(!busy)d.classList.add("mt-ready")}
+var chk=fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.json():null}).then(function(j){
+  if(!j||!j.v||j.v===V||!window.caches)return;
+  if(done)return;
+  try{if(sessionStorage.getItem("mt-upd")===j.v)return;sessionStorage.setItem("mt-upd",j.v)}catch(e){return}
+  busy=true;
+  return fetch("index.html?v="+encodeURIComponent(j.v),{cache:"reload"}).then(function(r){
+    if(!r.ok)throw 0;
+    return caches.keys().then(function(ks){ks=ks.filter(function(k){return k.indexOf("mt-shell")===0});if(!ks.length)ks=["mt-shell-v2"];
+      return Promise.all(ks.map(function(k){return caches.open(k).then(function(c){return c.put("index.html",r.clone())})}))});
+  }).then(function(){location.reload()});
+}).catch(function(){busy=false;if(done)show()});
+/* called at the end of the page: show it once the version is checked, or after 0.7 s at the latest */
+window.mtShow=function(){var t=setTimeout(function(){done=true;show()},700);chk.then(function(){clearTimeout(t);done=true;show()})};
+setTimeout(function(){busy=false;d.classList.add("mt-ready")},6000);})()</script>
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
@@ -283,7 +298,30 @@ details.box summary{cursor:pointer;font-weight:700}
     try { navigator.serviceWorker.register('sw.js').catch(function () {}); } catch (e) {}
   }
 
+  // The list saved on this device: read once, so the first request can say which list the app already has
+  try { window.mtCache = JSON.parse(localStorage.getItem('mt-cache-v2') || 'null'); } catch (e) { window.mtCache = null; }
+  if (window.mtCache && window.mtCache.rev && window.mtCache.items && window.mtCache.items.length) window.mtRev = window.mtCache.rev;
+
+  // One request at the start instead of five: these calls are answered together by apiStart.
+  // An older Google script without apiStart still works (each call is then sent on its own).
+  var START = { apiListe: 1, apiInfo: 1, apiSeitenStatus: 1, apiFilterLesen: 1, apiHintergrund: 1 }, bundle = null, bundleAt = 0, noStart = false;
   window.mtCall = function (fn, args) {
+    if (!START[fn] || noStart || (args && args.length)) return post(fn, args);
+    if (!bundle || Date.now() - bundleAt > 3000) { bundleAt = Date.now(); bundle = post('apiStart', [window.mtRev || '']); }
+    return bundle.then(function (s) {
+      s = s || {};
+      if (fn === 'apiListe') return { items: s.items, same: !!s.same, rev: s.rev, categories: s.categories, prefs: s.prefs, ms: s.ms };
+      if (fn === 'apiInfo') return { sheetUrl: s.sheetUrl };
+      if (fn === 'apiSeitenStatus') return s.siteGone || {};
+      if (fn === 'apiFilterLesen') return s.filters || null;
+      return s.bg || null;
+    }, function (e) {
+      if (/Unbekannte Funktion/.test((e && e.message) || '')) { noStart = true; return post(fn, args); }
+      throw e;
+    });
+  };
+
+  function post(fn, args) {
     if (!window.MT_CFG) return new Promise(function () {});
     return fetch(MT_CFG.u, {
       method: 'POST', redirect: 'follow',
@@ -297,7 +335,7 @@ details.box summary{cursor:pointer;font-weight:700}
       try { j = JSON.parse(t); } catch (e) { throw new Error(tx('net')); }
       if (j && j.error) {
         // Wrong or replaced key: ask for the setup link again
-        if (j.error === 'Kein Zugriff' && fn === 'apiListe') {
+        if (j.error === 'Kein Zugriff' && (fn === 'apiListe' || fn === 'apiStart')) {
           showSetup(true);
           var er = document.getElementById('mtsErr'); er.textContent = tx('denied'); er.hidden = false;
         }
@@ -305,7 +343,7 @@ details.box summary{cursor:pointer;font-weight:700}
       }
       return j ? j.result : null;
     });
-  };
+  }
 
   function showSetup(canCancel) {
     var box = document.getElementById('mtSetup');
@@ -327,7 +365,7 @@ details.box summary{cursor:pointer;font-weight:700}
       }
       store(o);
       // Clear the old cache of another list, then start fresh with the setup link in the address
-      try { localStorage.removeItem('mt-cache-v1'); } catch (e) {}
+      try { localStorage.removeItem('mt-cache-v1'); localStorage.removeItem('mt-cache-v2'); } catch (e) {}
       var data = btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
       location.replace(location.pathname + '#setup=' + data);
       location.reload();
@@ -647,7 +685,7 @@ const cl=c=>CLABEL[prefs.lang][c]||c;
 const cs=c=>CSHORT[prefs.lang][c]||c;
 function toast(x){const e=$("toast");e.textContent=x;e.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>e.hidden=true,2800)}
 function err(e){const m=e&&e.message||String(e);toast(/allink/.test(m)?t("muBad"):t("failed",m))}
-function put(item){if(!item)return;const i=items.findIndex(x=>x.id===item.id);if(i<0)items.push(item);else items[i]=item;renderAll()}
+function put(item){if(!item)return;const i=items.findIndex(x=>x.id===item.id);if(i>=0&&JSON.stringify(items[i])===JSON.stringify(item))return;if(i<0)items.push(item);else items[i]=item;renderAll()}
 function hash(s){let h=0;for(const ch of s)h=(h*31+ch.charCodeAt(0))>>>0;return h}
 function catColor(c){if(!c)return"var(--muted)";return`var(${DEF_CATS[c]||PALETTE[hash(c)%PALETTE.length]})`}
 function allCats(){const out=serverCats.slice();items.forEach(i=>(i.genres||[]).forEach(g=>{if(!out.some(x=>x.toLowerCase()===g.toLowerCase()))out.push(g)}));return out}
@@ -670,11 +708,24 @@ $("langSeg").addEventListener("click",e=>{const b=e.target.closest("button[data-
 $("pageSeg").addEventListener("click",e=>{const b=e.target.closest("button[data-page]");if(!b)return;prefs.page=b.dataset.page;savePrefs();applyPage();renderTier()});
 
 /* ---------- saving ---------- */
+const saving={}, saveQ={};   // saving[id]: changes of this series still on their way to the sheet
+function sendSave(id,patch){
+  const q=saveQ[id]||(saveQ[id]={wait:null,chain:Promise.resolve()});
+  if(q.wait){Object.assign(q.wait.patch,patch);return q.wait.p}          // not sent yet: merge (quick +1 +1 +1 = one request)
+  const w={patch:{...patch}};
+  w.p=q.chain.then(()=>{q.wait=null;return run("apiSpeichern",id,w.patch)});
+  q.wait=w; q.chain=w.p.catch(()=>{});
+  return w.p;
+}
 async function save(id,patch){
   const i=items.findIndex(x=>x.id===id); const before=i>=0?{...items[i]}:null;
   if(i>=0){items[i]={...items[i],...patch};renderAll()}
-  try{put(await run("apiSpeichern",id,patch));return true}
-  catch(e){if(before){items[i]=before;renderAll()}err(e);return false}
+  saving[id]=(saving[id]||0)+1;
+  try{const it=await sendSave(id,patch);saving[id]--;if(!saving[id])put(it);return true}
+  catch(e){
+    saving[id]--;
+    if(!saving[id]){const j=items.findIndex(x=>x.id===id);if(before&&j>=0){items[j]=before;renderAll()}reload(false)}
+    err(e);return false}
 }
 
 /* ---------- paste a link ---------- */
@@ -850,7 +901,8 @@ function renderShelf(){
     const rest=(!gInc.size||gInc.has("__none"))?list.filter(i=>!(i.genres||[]).length):[];
     if(rest.length)html+=`<div class="group-h"><h2>${t("noCat")}</h2><span class="n">${rest.length}</span></div><div class="list">${rest.map(row).join("")}</div>`;
   }else html=`<div class="list">${list.map(row).join("")}</div>`;
-  $("shelf").innerHTML=html;
+  if(html===renderShelf.last&&$("shelf").firstChild)return;
+  renderShelf.last=html; $("shelf").innerHTML=html;
 }
 let loaded=false;
 function renderAll(){
@@ -1339,7 +1391,17 @@ async function reload(manual){
   if(loading)return; loading=true; $("btnReload").disabled=true;
   try{
     const res=await run("apiListe");
-    items=res.items||[]; serverCats=res.categories||serverCats; loaded=true; lastLoad=Date.now();
+    const first=!loaded; let changed=false;
+    if(!res.same){
+      const fresh=(res.items||[]).map(it=>saving[it.id]?(items.find(x=>x.id===it.id)||it):it);
+      const cats=res.categories||serverCats;
+      changed=JSON.stringify(fresh)!==JSON.stringify(items)||JSON.stringify(cats)!==JSON.stringify(serverCats);
+      items=fresh; serverCats=cats;
+    }
+    if(res.rev)window.mtRev=res.rev;
+    if(res.ms!=null)window.mtServerMs=res.ms;
+    loaded=true; lastLoad=Date.now();
+    if(!first&&!changed){if(manual)toast(t("refreshed"));return}
     if(!havePrefs&&res.prefs&&Object.keys(res.prefs).length){prefs={...prefs,...res.prefs};havePrefs=true;try{localStorage.setItem("mt-prefs",JSON.stringify(prefs))}catch(e){}applyPage();applyLang()}
     else renderAll();
     if(manual)toast(t("refreshed"));
@@ -1347,7 +1409,7 @@ async function reload(manual){
   finally{loading=false;$("btnReload").disabled=false}
 }
 $("btnReload").onclick=()=>reload(true);
-const autoReload=()=>{if(document.visibilityState==="visible"&&!$("dlg").open&&Date.now()-lastLoad>3000)reload(false)};
+const autoReload=()=>{if(document.visibilityState==="visible"&&!$("dlg").open&&Date.now()-lastLoad>5000)reload(false)};
 document.addEventListener("visibilitychange",autoReload);
 window.addEventListener("focus",autoReload);
 window.addEventListener("pageshow",e=>{if(e.persisted)autoReload()});
@@ -1485,7 +1547,7 @@ applyPage(); applyLang(); reload(false);
 <script>
 /* App version shown at the bottom of every page; raise it with every update and note it in the change log */
 (function(){
-  var APP_VERSION = 'v2.9.1', APP_DATE = '10.11.2026';
+  var APP_VERSION = 'v2.10.0', APP_DATE = '14.11.2026';
   var f = document.createElement('div');
   f.id = 'appVersion';
   f.textContent = 'Manga Tracker ' + APP_VERSION + ' \u00b7 ' + APP_DATE;
@@ -1519,9 +1581,11 @@ applyPage(); applyLang(); reload(false);
 })();
 </script>
 <script>
-/* Faster start: show the list saved on this device right away, then replace it with fresh data. Also measures load times. */
+/* Faster start (v2.10): the list saved on this device is shown right away and can be used at once.
+ * Every change is also saved on the device, so the saved list is never older than your last tap.
+ * The fresh list replaces it only where something is different. Also measures load times. */
 (function(){
-  var CK = 'mt-cache-v1', saved = 0, cacheMs = null, freshMs = null;
+  var CK = 'mt-cache-v2', cacheMs = null, freshMs = null, lastSaved = '';
   var de = function () { return prefs.lang === 'de'; };
   var fmt = function (ms) { var v = (ms / 1000).toFixed(1); return (de() ? v.replace('.', ',') : v) + ' s'; };
   var label = document.getElementById('appVersion');
@@ -1530,31 +1594,46 @@ applyPage(); applyLang(); reload(false);
     if (!label) return;
     var p = [base];
     if (cacheMs != null) p.push((de() ? 'gespeicherte Liste nach ' : 'saved list after ') + fmt(cacheMs));
-    if (freshMs != null) p.push((de() ? 'aktuelle Liste nach ' : 'fresh list after ') + fmt(freshMs));
+    if (freshMs != null) p.push((de() ? 'aktuelle Liste nach ' : 'fresh list after ') + fmt(freshMs)
+      + (window.mtServerMs != null ? (de() ? ' (davon Google-Skript ' : ' (Google script ') + fmt(window.mtServerMs) + ')' : ''));
     label.textContent = p.join(' \u00b7 ');
   }
-  var css = document.createElement('style');
-  css.textContent = 'body.mt-stale #shelf .ch,body.mt-stale #shelf select,body.mt-stale #shelf .t,body.mt-stale #btnNew{pointer-events:none;opacity:.55}';
-  document.head.appendChild(css);
+  try { localStorage.removeItem('mt-cache-v1'); } catch (e) {}
   if (!loaded) {
     try {
-      var c = JSON.parse(localStorage.getItem(CK) || 'null');
+      var c = window.mtCache || JSON.parse(localStorage.getItem(CK) || 'null');
       if (c && c.items && c.items.length) {
         items = c.items; if (c.cats) serverCats = c.cats;
-        document.body.classList.add('mt-stale');
+        if (c.rev) window.mtRev = c.rev;
+        loaded = true;            // the saved list is a real list: counts and buttons work at once
         renderAll();
         cacheMs = performance.now();
       }
     } catch (e) {}
   }
+  window.mtCache = null;
   setLabel();
-  setInterval(function () {
-    if (!loaded || !lastLoad || lastLoad === saved) return;
-    saved = lastLoad;
-    if (freshMs == null) { freshMs = performance.now(); document.body.classList.remove('mt-stale'); }
-    setLabel();
-    try { localStorage.setItem(CK, JSON.stringify({ items: items, cats: serverCats, at: Date.now() })); } catch (e) {}
-  }, 250);
+  var t = null;
+  function store() {
+    t = null;
+    if (!lastLoad) return;        // nothing confirmed by the sheet yet
+    var busy = Object.keys(saving).some(function (k) { return saving[k]; });
+    try {
+      var txt = JSON.stringify({ items: items, cats: serverCats, rev: busy ? '' : (window.mtRev || ''), at: Date.now() });
+      if (txt.length === lastSaved.length && txt.replace(/"at":\d+/, '') === lastSaved.replace(/"at":\d+/, '')) return;
+      lastSaved = txt; localStorage.setItem(CK, txt);
+    } catch (e) {}
+  }
+  var baseAll = renderAll;
+  renderAll = function () { baseAll.apply(this, arguments); if (!t) t = setTimeout(store, 400); };
+  var iv = setInterval(function () {
+    if (!lastLoad) return;
+    clearInterval(iv);
+    freshMs = performance.now(); setLabel();
+    if (!t) t = setTimeout(store, 400);
+  }, 100);
+  // iOS can stop the app at any time: save right away when it goes to the background
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') { clearTimeout(t); store(); } });
 })();
 </script>
 <script>
@@ -2307,6 +2386,6 @@ applyPage(); applyLang(); reload(false);
   showBg();
 })();
 </script>
-<script>document.documentElement.classList.add("mt-ready")</script>
+<script>window.mtShow()</script>
 </body>
 </html>

@@ -248,7 +248,14 @@ function alle_() {
   const sh = blatt_(); const n = sh.getLastRow() - 1; if (n < 1) return [];
   const tz = TZ;
   const d = v => v instanceof Date ? Utilities.formatDate(v, tz, 'yyyy-MM-dd') : (v || null);
-  return sh.getRange(2, 1, n, HEAD.length).getValues().filter(r => r[C.title - 1] !== '').map(r => ({
+  return sh.getRange(2, 1, n, HEAD.length).getValues().filter(r => r[C.title - 1] !== '').map(ding_);
+}
+
+/** Eine Tabellenzeile als Serie (für die ganze Liste und für eine einzelne Zeile nach dem Speichern). */
+function ding_(r) {
+  const tz = TZ;
+  const d = v => v instanceof Date ? Utilities.formatDate(v, tz, 'yyyy-MM-dd') : (v || null);
+  const it = ({
     id: String(r[C.id - 1]),
     genres: splitG_(r[C.genres - 1]),
     title: String(r[C.title - 1]),
@@ -283,7 +290,9 @@ function alle_() {
     dbUrl: r[C.dbUrl - 1] || null,
     wtFeed: r[C.wtFeed - 1] || null,
     readAt: Number(r[C.readAt - 1]) || 0
-  })).map(it => { it.next = naechstesKapitel_(it); return it; });
+  });
+  it.next = naechstesKapitel_(it);
+  return it;
 }
 
 function zeile_(sh, id) {
@@ -310,20 +319,22 @@ function zelle_(field, v) {
 function schreiben_(id, patch) {
   const sh = blatt_(); const r = zeile_(sh, id);
   if (!r) throw new Error('Serie nicht gefunden – lade die Liste neu.');
-  if (patch.url && !patch.overview && !sh.getRange(r, C.overview).getValue()) {
-    const old = sh.getRange(r, C.url).getValue();
+  // Schneller: die Zeile einmal lesen, dann alles schreiben, dann die Zeile einmal lesen (statt der ganzen Tabelle)
+  const row = sh.getRange(r, 1, 1, HEAD.length).getValues()[0];
+  patch = Object.assign({}, patch);
+  if (patch.url && !patch.overview && !row[C.overview - 1]) {
+    const old = row[C.url - 1];
     const ov = (old && urlInfo_(old) && urlInfo_(old).ch == null) ? old : (uebersicht_(old) || uebersicht_(patch.url));
-    if (ov) sh.getRange(r, C.overview).setValue(txt_(ov));
+    if (ov) patch.overview = ov;
   }
   if ('image' in patch && !('imageSrc' in patch)) patch.imageSrc = '';
   if ('dbUrl' in patch) {
     const mid = dbIdAusLink_(patch.dbUrl);
     if (patch.dbUrl && !mid) throw new Error('allink');
-    if (mid) { const det = alById_(mid); if (!det) throw new Error('allink'); Object.assign(patch, alFelder_(det, 'bestätigt')); if (sh.getRange(r, C.source).getValue() === 'none') { patch.source = ''; patch.latestSince = ''; planeLauf_('neuesteErmitteln'); } }
+    if (mid) { const det = alById_(mid); if (!det) throw new Error('allink'); Object.assign(patch, alFelder_(det, 'bestätigt')); if (row[C.source - 1] === 'none') { patch.source = ''; patch.latestSince = ''; planeLauf_('neuesteErmitteln'); } }
     else Object.assign(patch, { dbId: '', dbTitle: '', alt: '', official: '', dbStatus: 'keine', dbUrl: '', wtFeed: '' });
   }
   if ('chapter' in patch && patch.chapter != null && patch.chapter !== '') {
-    const row = sh.getRange(r, 1, 1, HEAD.length).getValues()[0];
     const newCh = Math.floor(Number(patch.chapter));
     const L = row[C.latest - 1] === '' ? null : Number(row[C.latest - 1]);
     const pc = parseCheck_(row[C.check - 1]);
@@ -340,12 +351,12 @@ function schreiben_(id, patch) {
   if ('status' in patch && patch.status !== 'Hiatus') patch.back = '';
   // Uhrzeit des Lesens (nur für die Sortierung): wenn sich Kapitel oder Lesedatum ändern
   if (patch.lastRead || ('chapter' in patch)) {
-    const old = sh.getRange(r, C.chapter, 1, 3).getValues()[0];
+    const old = row.slice(C.chapter - 1, C.chapter + 2);
     const oldDate = old[2] instanceof Date ? Utilities.formatDate(old[2], TZ, 'yyyy-MM-dd') : String(old[2] || '');
     if (('chapter' in patch && String(patch.chapter ?? '') !== String(old[0])) || (patch.lastRead && patch.lastRead !== oldDate)) patch.readAt = Date.now();
   }
   Object.keys(patch).forEach(k => { if (C[k] && k !== 'id') sh.getRange(r, C[k]).setValue(zelle_(k, patch[k])); });
-  return alle_().find(x => x.id === id);
+  return ding_(sh.getRange(r, 1, 1, HEAD.length).getValues()[0]);
 }
 
 function anlegen_(o) {

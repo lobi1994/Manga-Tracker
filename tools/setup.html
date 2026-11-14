@@ -80,7 +80,30 @@
     try { navigator.serviceWorker.register('sw.js').catch(function () {}); } catch (e) {}
   }
 
+  // The list saved on this device: read once, so the first request can say which list the app already has
+  try { window.mtCache = JSON.parse(localStorage.getItem('mt-cache-v2') || 'null'); } catch (e) { window.mtCache = null; }
+  if (window.mtCache && window.mtCache.rev && window.mtCache.items && window.mtCache.items.length) window.mtRev = window.mtCache.rev;
+
+  // One request at the start instead of five: these calls are answered together by apiStart.
+  // An older Google script without apiStart still works (each call is then sent on its own).
+  var START = { apiListe: 1, apiInfo: 1, apiSeitenStatus: 1, apiFilterLesen: 1, apiHintergrund: 1 }, bundle = null, bundleAt = 0, noStart = false;
   window.mtCall = function (fn, args) {
+    if (!START[fn] || noStart || (args && args.length)) return post(fn, args);
+    if (!bundle || Date.now() - bundleAt > 3000) { bundleAt = Date.now(); bundle = post('apiStart', [window.mtRev || '']); }
+    return bundle.then(function (s) {
+      s = s || {};
+      if (fn === 'apiListe') return { items: s.items, same: !!s.same, rev: s.rev, categories: s.categories, prefs: s.prefs, ms: s.ms };
+      if (fn === 'apiInfo') return { sheetUrl: s.sheetUrl };
+      if (fn === 'apiSeitenStatus') return s.siteGone || {};
+      if (fn === 'apiFilterLesen') return s.filters || null;
+      return s.bg || null;
+    }, function (e) {
+      if (/Unbekannte Funktion/.test((e && e.message) || '')) { noStart = true; return post(fn, args); }
+      throw e;
+    });
+  };
+
+  function post(fn, args) {
     if (!window.MT_CFG) return new Promise(function () {});
     return fetch(MT_CFG.u, {
       method: 'POST', redirect: 'follow',
@@ -94,7 +117,7 @@
       try { j = JSON.parse(t); } catch (e) { throw new Error(tx('net')); }
       if (j && j.error) {
         // Wrong or replaced key: ask for the setup link again
-        if (j.error === 'Kein Zugriff' && fn === 'apiListe') {
+        if (j.error === 'Kein Zugriff' && (fn === 'apiListe' || fn === 'apiStart')) {
           showSetup(true);
           var er = document.getElementById('mtsErr'); er.textContent = tx('denied'); er.hidden = false;
         }
@@ -102,7 +125,7 @@
       }
       return j ? j.result : null;
     });
-  };
+  }
 
   function showSetup(canCancel) {
     var box = document.getElementById('mtSetup');
@@ -124,7 +147,7 @@
       }
       store(o);
       // Clear the old cache of another list, then start fresh with the setup link in the address
-      try { localStorage.removeItem('mt-cache-v1'); } catch (e) {}
+      try { localStorage.removeItem('mt-cache-v1'); localStorage.removeItem('mt-cache-v2'); } catch (e) {}
       var data = btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
       location.replace(location.pathname + '#setup=' + data);
       location.reload();

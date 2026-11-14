@@ -1,11 +1,17 @@
 /* Manga Tracker – starts the app from the device cache.
- * App page: shown from the cache immediately, updated in the background (new version on the next start).
- * Fonts: cached once. Calls to Google (your list) are never cached here. */
-var CACHE = 'mt-shell-v1';
-var SHELL = ['./', 'index.html', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-32.png'];
+ * App page: shown from the cache immediately. The page itself checks the version number before it becomes
+ * visible and replaces the cached page when a newer one is out (see tools/build.py), so an old version is not shown.
+ * Fonts: cached once. Calls to Google (your list) and version.json are never cached here. */
+var VERSION = 'v2.10.0';   // set by tools/build.py; a new number makes the device install this file again
+var CACHE = 'mt-shell-v2';
+var SHELL = ['index.html', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-32.png'];
 
 self.addEventListener('install', function (e) {
-  e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(SHELL); }).then(function () { return self.skipWaiting(); }));
+  e.waitUntil(caches.open(CACHE).then(function (c) {
+    return Promise.all(SHELL.map(function (u) {
+      return fetch(u, { cache: 'reload' }).then(function (res) { if (res.ok) return c.put(u, res); });
+    }));
+  }).then(function () { return self.skipWaiting(); }));
 });
 
 self.addEventListener('activate', function (e) {
@@ -20,10 +26,13 @@ self.addEventListener('fetch', function (e) {
   var url = new URL(req.url);
 
   if (url.origin === self.location.origin) {
-    var key = req.mode === 'navigate' ? 'index.html' : req;
+    if (/\/version\.json$/.test(url.pathname) || url.search) return;   // always from the network
+    var nav = req.mode === 'navigate';
+    var key = nav ? 'index.html' : req;
     e.respondWith(caches.open(CACHE).then(function (c) {
       return c.match(key).then(function (hit) {
-        var net = fetch(req).then(function (res) {
+        // refresh the cached copy in the background (the page is asked for fresh, not from the browser's own 10-minute cache)
+        var net = (nav ? fetch('index.html', { cache: 'no-cache' }) : fetch(req)).then(function (res) {
           if (res && res.ok) c.put(key, res.clone());
           return res;
         }).catch(function () { return hit; });

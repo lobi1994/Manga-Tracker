@@ -12,7 +12,7 @@ import pathlib, re, sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SRC = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else ROOT / 'google')
-GS = ['Code.gs', 'Api.gs', 'KapitelAktualisieren.gs', 'LinkEintragen.gs', 'SeitenStatus.gs', 'Zusatz.gs', 'Lesestand.gs', 'Inbox.gs', 'BildText.gs']
+GS = ['Code.gs', 'Api.gs', 'KapitelAktualisieren.gs', 'LinkEintragen.gs', 'SeitenStatus.gs', 'Zusatz.gs', 'Lesestand.gs', 'Inbox.gs', 'BildText.gs', 'Schnell.gs']
 KEY_RE = re.compile(r"const KEY = '([^']*)';[^\n]*")
 
 secret = ''
@@ -70,10 +70,34 @@ rep('const KEY=<?!= JSON.stringify(key) ?>;', 'const KEY=window.MT_CFG?MT_CFG.k:
 rep('const run=(fn,...a)=>new Promise((res,rej)=>google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn](KEY,...a));',
     'const run=(fn,...a)=>window.mtCall(fn,a);')
 # Show the page only when all add-ons (new layout, style, header) have run - no flash of the old design
+# Never show an old version: before the page becomes visible it asks GitHub for the current version number
+# (version.json, tiny, not cached). If a newer one is out, the new page is fetched, put into the device cache
+# and loaded - all while the page is still hidden. Without a connection the saved page is shown after 0.7 s.
+VERSION = re.search(r"APP_VERSION = '([^']+)'", html_src).group(1)
+(ROOT / 'version.json').write_text('{"v":"%s"}\n' % VERSION, encoding='utf-8')
 rep('<title>Manga Tracker</title>\n', '<title>Manga Tracker</title>\n'
     '<style>html:not(.mt-ready) body{visibility:hidden}</style>\n'
-    '<script>setTimeout(function(){document.documentElement.classList.add("mt-ready")},2500)</script>\n')
-rep('</body>', '<script>document.documentElement.classList.add("mt-ready")</script>\n</body>')
+    '<script>(function(){var V="' + VERSION + '",d=document.documentElement,busy=false,done=false;\n'
+    'function show(){if(!busy)d.classList.add("mt-ready")}\n'
+    'var chk=fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.json():null}).then(function(j){\n'
+    '  if(!j||!j.v||j.v===V||!window.caches)return;\n'
+    '  if(done)return;\n'
+    '  try{if(sessionStorage.getItem("mt-upd")===j.v)return;sessionStorage.setItem("mt-upd",j.v)}catch(e){return}\n'
+    '  busy=true;\n'
+    '  return fetch("index.html?v="+encodeURIComponent(j.v),{cache:"reload"}).then(function(r){\n'
+    '    if(!r.ok)throw 0;\n'
+    '    return caches.keys().then(function(ks){ks=ks.filter(function(k){return k.indexOf("mt-shell")===0});if(!ks.length)ks=["mt-shell-v2"];\n'
+    '      return Promise.all(ks.map(function(k){return caches.open(k).then(function(c){return c.put("index.html",r.clone())})}))});\n'
+    '  }).then(function(){location.reload()});\n'
+    '}).catch(function(){busy=false;if(done)show()});\n'
+    '/* called at the end of the page: show it once the version is checked, or after 0.7 s at the latest */\n'
+    'window.mtShow=function(){var t=setTimeout(function(){done=true;show()},700);chk.then(function(){clearTimeout(t);done=true;show()})};\n'
+    'setTimeout(function(){busy=false;d.classList.add("mt-ready")},6000);})()</script>\n')
+rep('</body>', '<script>window.mtShow()</script>\n</body>')
+sw = (ROOT / 'sw.js').read_text(encoding='utf-8')
+sw = re.sub(r"var VERSION = '[^']*';", "var VERSION = '%s';" % VERSION, sw)
+assert VERSION in sw
+(ROOT / 'sw.js').write_text(sw, encoding='utf-8')
 assert '<?' not in h, 'template tag left'
 
 setup = (ROOT / 'tools' / 'setup.html').read_text(encoding='utf-8')
