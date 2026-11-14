@@ -1350,7 +1350,7 @@ applyPage(); applyLang(); reload(false);
 <script>
 /* App version shown at the bottom of every page; raise it with every update and note it in the change log */
 (function(){
-  var APP_VERSION = 'v2.10.0', APP_DATE = '14.11.2026';
+  var APP_VERSION = 'v2.10.1', APP_DATE = '14.11.2026';
   var f = document.createElement('div');
   f.id = 'appVersion';
   f.textContent = 'Manga Tracker ' + APP_VERSION + ' \u00b7 ' + APP_DATE;
@@ -1399,8 +1399,18 @@ applyPage(); applyLang(); reload(false);
     if (cacheMs != null) p.push((de() ? 'gespeicherte Liste nach ' : 'saved list after ') + fmt(cacheMs));
     if (freshMs != null) p.push((de() ? 'aktuelle Liste nach ' : 'fresh list after ') + fmt(freshMs)
       + (window.mtServerMs != null ? (de() ? ' (davon Google-Skript ' : ' (Google script ') + fmt(window.mtServerMs) + ')' : ''));
+    if (window.mtShownAt != null) p.splice(1, 0, (de() ? 'sichtbar nach ' : 'visible after ') + fmt(window.mtShownAt));
+    if (detail) {
+      // v2.10.1: tap the version line for a breakdown of the start (all times since iOS began loading the page)
+      var n = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {}, q = window.mtReq || {};
+      var d = function (name, v) { if (v != null && v > 0) p.push(name + ' ' + fmt(v)); };
+      d('worker', n.workerStart); d(de() ? 'Seite angefragt' : 'page requested', n.requestStart); d(de() ? 'Seite da' : 'page received', n.responseEnd);
+      d(de() ? 'Seite aufgebaut' : 'page built', n.domInteractive); d(de() ? 'Anfrage gesendet' : 'request sent', q.sent); d(de() ? 'Antwort da' : 'answer received', q.back);
+    }
     label.textContent = p.join(' \u00b7 ');
   }
+  var detail = false;
+  if (label) label.onclick = function () { detail = !detail; setLabel(); };
   try { localStorage.removeItem('mt-cache-v1'); } catch (e) {}
   if (!loaded) {
     try {

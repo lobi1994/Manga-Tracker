@@ -2,7 +2,7 @@
  * App page: shown from the cache immediately. The page itself checks the version number before it becomes
  * visible and replaces the cached page when a newer one is out (see tools/build.py), so an old version is not shown.
  * Fonts: cached once. Calls to Google (your list) and version.json are never cached here. */
-var VERSION = 'v2.10.0';   // set by tools/build.py; a new number makes the device install this file again
+var VERSION = 'v2.10.1';   // set by tools/build.py; a new number makes the device install this file again
 var CACHE = 'mt-shell-v2';
 var SHELL = ['index.html', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-32.png'];
 

@@ -89,7 +89,8 @@
   var START = { apiListe: 1, apiInfo: 1, apiSeitenStatus: 1, apiFilterLesen: 1, apiHintergrund: 1 }, bundle = null, bundleAt = 0, noStart = false;
   window.mtCall = function (fn, args) {
     if (!START[fn] || noStart || (args && args.length)) return post(fn, args);
-    if (!bundle || Date.now() - bundleAt > 3000) { bundleAt = Date.now(); bundle = post('apiStart', [window.mtRev || '']); }
+    if (!bundle || Date.now() - bundleAt > 3000) { bundleAt = Date.now(); bundle = post('apiStart', [window.mtRev || '']);
+      if (!window.mtReq) { var rq = window.mtReq = { sent: performance.now() }; bundle.then(function () { rq.back = performance.now(); }, function () {}); } }
     return bundle.then(function (s) {
       s = s || {};
       if (fn === 'apiListe') return { items: s.items, same: !!s.same, rev: s.rev, categories: s.categories, prefs: s.prefs, ms: s.ms };

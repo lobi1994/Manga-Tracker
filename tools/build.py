@@ -78,7 +78,7 @@ VERSION = re.search(r"APP_VERSION = '([^']+)'", html_src).group(1)
 rep('<title>Manga Tracker</title>\n', '<title>Manga Tracker</title>\n'
     '<style>html:not(.mt-ready) body{visibility:hidden}</style>\n'
     '<script>(function(){var V="' + VERSION + '",d=document.documentElement,busy=false,done=false;\n'
-    'function show(){if(!busy)d.classList.add("mt-ready")}\n'
+    'function show(){if(!busy){d.classList.add("mt-ready");if(!window.mtShownAt)window.mtShownAt=performance.now()}}\n'
     'var chk=fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.json():null}).then(function(j){\n'
     '  if(!j||!j.v||j.v===V||!window.caches)return;\n'
     '  if(done)return;\n'

@@ -8,8 +8,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Manga Tracker</title>
 <style>html:not(.mt-ready) body{visibility:hidden}</style>
-<script>(function(){var V="v2.10.0",d=document.documentElement,busy=false,done=false;
-function show(){if(!busy)d.classList.add("mt-ready")}
+<script>(function(){var V="v2.10.1",d=document.documentElement,busy=false,done=false;
+function show(){if(!busy){d.classList.add("mt-ready");if(!window.mtShownAt)window.mtShownAt=performance.now()}}
 var chk=fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.json():null}).then(function(j){
   if(!j||!j.v||j.v===V||!window.caches)return;
   if(done)return;
@@ -307,7 +307,8 @@ details.box summary{cursor:pointer;font-weight:700}
   var START = { apiListe: 1, apiInfo: 1, apiSeitenStatus: 1, apiFilterLesen: 1, apiHintergrund: 1 }, bundle = null, bundleAt = 0, noStart = false;
   window.mtCall = function (fn, args) {
     if (!START[fn] || noStart || (args && args.length)) return post(fn, args);
-    if (!bundle || Date.now() - bundleAt > 3000) { bundleAt = Date.now(); bundle = post('apiStart', [window.mtRev || '']); }
+    if (!bundle || Date.now() - bundleAt > 3000) { bundleAt = Date.now(); bundle = post('apiStart', [window.mtRev || '']);
+      if (!window.mtReq) { var rq = window.mtReq = { sent: performance.now() }; bundle.then(function () { rq.back = performance.now(); }, function () {}); } }
     return bundle.then(function (s) {
       s = s || {};
       if (fn === 'apiListe') return { items: s.items, same: !!s.same, rev: s.rev, categories: s.categories, prefs: s.prefs, ms: s.ms };
@@ -1547,7 +1548,7 @@ applyPage(); applyLang(); reload(false);
 <script>
 /* App version shown at the bottom of every page; raise it with every update and note it in the change log */
 (function(){
-  var APP_VERSION = 'v2.10.0', APP_DATE = '14.11.2026';
+  var APP_VERSION = 'v2.10.1', APP_DATE = '14.11.2026';
   var f = document.createElement('div');
   f.id = 'appVersion';
   f.textContent = 'Manga Tracker ' + APP_VERSION + ' \u00b7 ' + APP_DATE;
@@ -1596,8 +1597,18 @@ applyPage(); applyLang(); reload(false);
     if (cacheMs != null) p.push((de() ? 'gespeicherte Liste nach ' : 'saved list after ') + fmt(cacheMs));
     if (freshMs != null) p.push((de() ? 'aktuelle Liste nach ' : 'fresh list after ') + fmt(freshMs)
       + (window.mtServerMs != null ? (de() ? ' (davon Google-Skript ' : ' (Google script ') + fmt(window.mtServerMs) + ')' : ''));
+    if (window.mtShownAt != null) p.splice(1, 0, (de() ? 'sichtbar nach ' : 'visible after ') + fmt(window.mtShownAt));
+    if (detail) {
+      // v2.10.1: tap the version line for a breakdown of the start (all times since iOS began loading the page)
+      var n = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {}, q = window.mtReq || {};
+      var d = function (name, v) { if (v != null && v > 0) p.push(name + ' ' + fmt(v)); };
+      d('worker', n.workerStart); d(de() ? 'Seite angefragt' : 'page requested', n.requestStart); d(de() ? 'Seite da' : 'page received', n.responseEnd);
+      d(de() ? 'Seite aufgebaut' : 'page built', n.domInteractive); d(de() ? 'Anfrage gesendet' : 'request sent', q.sent); d(de() ? 'Antwort da' : 'answer received', q.back);
+    }
     label.textContent = p.join(' \u00b7 ');
   }
+  var detail = false;
+  if (label) label.onclick = function () { detail = !detail; setLabel(); };
   try { localStorage.removeItem('mt-cache-v1'); } catch (e) {}
   if (!loaded) {
     try {
