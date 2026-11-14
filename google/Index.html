@@ -695,9 +695,12 @@ function renderShelf(){
   else if(sort==="rating")list.sort((a,b)=>(parseInt(b.rating)||0)-(parseInt(a.rating)||0)||byT(a,b));
   else if(sort==="unread")list.sort((a,b)=>unread(b)-unread(a)||byT(a,b));
   else list.sort((a,b)=>sOrd(a.status)-sOrd(b.status)||byT(a,b));
-  if(!items.length){$("shelf").innerHTML=`<div class="list"><div class="empty-state">${loaded?t("empty"):t("loading")}</div></div>`;return}
-  if(!list.length){$("shelf").innerHTML=`<div class="list"><div class="empty-state">${t("nothing")}</div></div>`;return}
-  let html="";
+  if(!items.length){shelfPut.prev=null;$("shelf").innerHTML=`<div class="list"><div class="empty-state">${loaded?t("empty"):t("loading")}</div></div>`;return}
+  if(!list.length){shelfPut.prev=null;$("shelf").innerHTML=`<div class="list"><div class="empty-state">${t("nothing")}</div></div>`;return}
+  // v2.10.5: remember every card, so that after a change only the changed cards are replaced (no flickering covers)
+  const seq=[], real=row; let html="";
+  row=i=>{const h=real(i);if(!h)return"";seq.push([i.id,h]);return"\u0001"+(seq.length-1)+"\u0002"};
+  try{
   if(sort==="genre"){
     const cats=allCats().filter(c=>!gExc.has(c)&&(!gInc.size||gInc.has(c)));
     for(const c of cats){const part=list.filter(i=>(i.genres||[]).includes(c));if(!part.length)continue;
@@ -705,8 +708,34 @@ function renderShelf(){
     const rest=(!gInc.size||gInc.has("__none"))?list.filter(i=>!(i.genres||[]).length):[];
     if(rest.length)html+=`<div class="group-h"><h2>${t("noCat")}</h2><span class="n">${rest.length}</span></div><div class="list">${rest.map(row).join("")}</div>`;
   }else html=`<div class="list">${list.map(row).join("")}</div>`;
-  if(html===renderShelf.last&&$("shelf").firstChild)return;
-  renderShelf.last=html; $("shelf").innerHTML=html;
+  }finally{row=real}
+  shelfPut(html,seq);
+}
+/* Puts the list on the page. Same cards in the same order: only cards whose content changed are replaced.
+ * Otherwise the list is rebuilt, but pictures that are already loaded are kept, so they do not flicker. */
+function keepImgs(fresh,old){
+  const have=new Map();
+  old.forEach(n=>{const k=n.getAttribute("src");if(n.complete&&n.naturalWidth){if(!have.has(k))have.set(k,[]);have.get(k).push(n)}});
+  if(!have.size)return;
+  fresh.querySelectorAll("img[src]").forEach(n=>{const a=have.get(n.getAttribute("src"));const o=a&&a.pop();if(o&&o.className===n.className)n.replaceWith(o)});
+}
+function shelfPut(skel,seq){
+  const box=$("shelf"), prev=shelfPut.prev, tpl=document.createElement("template");
+  if(prev&&prev.skel===skel&&prev.seq.length===seq.length&&box.firstChild){
+    const els=box.querySelectorAll(".list > .item");
+    if(els.length===seq.length&&seq.every((c,k)=>c[0]===prev.seq[k][0])){
+      seq.forEach((c,k)=>{
+        if(c[1]===prev.seq[k][1])return;
+        tpl.innerHTML=c[1]; const el=tpl.content.firstElementChild; if(!el)return;
+        keepImgs(el,els[k].querySelectorAll("img[src]")); els[k].replaceWith(el);
+      });
+      shelfPut.prev={skel,seq}; return;
+    }
+  }
+  tpl.innerHTML=skel.replace(/\u0001(\d+)\u0002/g,(m,k)=>seq[k][1]);
+  keepImgs(tpl.content,box.querySelectorAll("img[src]"));
+  box.replaceChildren(tpl.content);
+  shelfPut.prev={skel,seq};
 }
 let loaded=false; window.mtBoot=true;
 function renderAll(){
