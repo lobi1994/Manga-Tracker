@@ -208,8 +208,8 @@ function blatt_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sh = ss.getSheetByName(SHEET) || ss.getSheets()[0];
   if (!blatt_.ok) {
-    const props = PropertiesService.getScriptProperties();
-    if (Number(props.getProperty('schema') || 0) < SCHEMA) {
+    if (Number(eig_().schema || 0) < SCHEMA) {
+      const props = PropertiesService.getScriptProperties();
       sh.getRange(1, 1, 1, HEAD.length).setValues([HEAD]).setFontWeight('bold').setBackground('#1f3864').setFontColor('#ffffff');
       sh.getRange(2, C.genres, 1000, 1).clearDataValidations();
       sh.setColumnWidth(C.overview, 260); sh.setColumnWidth(C.image, 220); sh.setColumnWidth(C.imageSrc, 220);
@@ -246,9 +246,40 @@ function datum_(v) { return v instanceof Date ? Utilities.formatDate(v, TZ, 'yyy
 
 function alle_() {
   const sh = blatt_(); const n = sh.getLastRow() - 1; if (n < 1) return [];
-  const tz = TZ;
-  const d = v => v instanceof Date ? Utilities.formatDate(v, tz, 'yyyy-MM-dd') : (v || null);
-  return sh.getRange(2, 1, n, HEAD.length).getValues().filter(r => r[C.title - 1] !== '').map(ding_);
+  return zeilenLesen_(sh, n).map(ding_);
+}
+
+/** Liest nur die Zeilen mit Titel (v2.10.7). Die Tabelle hat durch die Checkboxen rund 1000 „belegte“ Zeilen,
+ *  auch wenn nur 150 Serien darin stehen: erst die Titelspalte lesen, dann nur die gefüllten Blöcke. */
+function zeilenLesen_(sh, n) {
+  const voll = r => r[C.title - 1] !== '';
+  if (n <= 250) return sh.getRange(2, 1, n, HEAD.length).getValues().filter(voll);
+  const tit = sh.getRange(2, C.title, n, 1).getValues();
+  const bl = []; let s = -1, leer = 0;
+  for (let i = 0; i < n; i++) {
+    if (tit[i][0] !== '') { if (s < 0) s = i; leer = 0; }
+    else if (s >= 0 && ++leer > 40) { bl.push([s, i - leer - s + 1]); s = -1; leer = 0; }   // Lücken bis 40 Zeilen bleiben im Block
+  }
+  if (s >= 0) bl.push([s, n - leer - s]);
+  if (!bl.length) return [];
+  if (bl.length > 4) return sh.getRange(2, 1, n, HEAD.length).getValues().filter(voll);    // sehr zerstückelt: ein Lesevorgang ist schneller
+  let out = [];
+  bl.forEach(b => { out = out.concat(sh.getRange(b[0] + 2, 1, b[1], HEAD.length).getValues().filter(voll)); });
+  return out;
+}
+
+/** Erste ganz leere Zeile im vorbereiteten Bereich (damit neue Serien nicht hinter Zeile 1000 landen). 0 = keine gefunden. */
+function freieZeile_(sh) {
+  const n = sh.getLastRow() - 1; if (n < 1) return 0;
+  const tit = sh.getRange(2, C.title, n, 1).getValues();
+  let versuche = 0;
+  for (let i = 0; i < n && versuche < 3; i++) {
+    if (tit[i][0] !== '') continue;
+    versuche++;
+    const row = sh.getRange(i + 2, 1, 1, HEAD.length).getValues()[0];
+    if (row.every(c => c === '' || c === false)) return i + 2;
+  }
+  return 0;
 }
 
 /** Eine Tabellenzeile als Serie (für die ganze Liste und für eine einzelne Zeile nach dem Speichern). */
@@ -368,7 +399,8 @@ function anlegen_(o) {
     const k = Object.keys(C).find(key => C[key] === i + 1);
     return k === 'id' ? id : zelle_(k, o[k]);
   });
-  sh.appendRow(row);
+  const frei = freieZeile_(sh);
+  if (frei) sh.getRange(frei, 1, 1, HEAD.length).setValues([row]); else sh.appendRow(row);
   if (!o.image && !o.desc && !o.descDe) planeImport_();
   planeLauf_('neuesteErmitteln');
   planeLauf_('anilistZuordnen');

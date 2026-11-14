@@ -8,7 +8,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Manga Tracker</title>
 <style>html:not(.mt-ready) body{visibility:hidden}</style>
-<script>window.mtMarks=[];window.mtMark=function(n){window.mtMarks.push([n,performance.now()])};(function(){var V="v2.10.6",d=document.documentElement,hold=false,want=false,touched=false;
+<script>window.mtMarks=[];window.mtMark=function(n){window.mtMarks.push([n,performance.now()])};(function(){var V="v2.10.7",d=document.documentElement,hold=false,want=false,touched=false;
 var D=window.mtDiag={vis0:document.visibilityState,visAt:null,chkAt:null,gap:0,gapAt:0},hb=performance.now();
 var iv=setInterval(function(){var n=performance.now();if(n>20000){clearInterval(iv);return}if(n-hb>D.gap){D.gap=n-hb;D.gapAt=hb}hb=n},100);
 document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible"&&D.visAt==null)D.visAt=performance.now()});
@@ -315,7 +315,7 @@ details.box summary{cursor:pointer;font-weight:700}
       if (!window.mtReq) { var rq = window.mtReq = { sent: performance.now() }; bundle.then(function () { rq.back = performance.now(); }, function () {}); } }
     return bundle.then(function (s) {
       s = s || {};
-      if (fn === 'apiListe') return { items: s.items, same: !!s.same, rev: s.rev, categories: s.categories, prefs: s.prefs, ms: s.ms };
+      if (fn === 'apiListe') return { items: s.items, same: !!s.same, rev: s.rev, categories: s.categories, prefs: s.prefs, ms: s.ms, t: s.t };
       if (fn === 'apiInfo') return { sheetUrl: s.sheetUrl };
       if (fn === 'apiSeitenStatus') return s.siteGone || {};
       if (fn === 'apiFilterLesen') return s.filters || null;
@@ -1446,7 +1446,7 @@ async function reload(manual){
       items=fresh; serverCats=cats;
     }
     if(res.rev)window.mtRev=res.rev;
-    if(res.ms!=null)window.mtServerMs=res.ms;
+    if(res.ms!=null)window.mtServerMs=res.ms; if(res.t)window.mtServerT=res.t;
     loaded=true; lastLoad=Date.now();
     if(!first&&!changed){if(manual)toast(t("refreshed"));return}
     if(!havePrefs&&res.prefs&&Object.keys(res.prefs).length){prefs={...prefs,...res.prefs};havePrefs=true;try{localStorage.setItem("mt-prefs",JSON.stringify(prefs))}catch(e){}applyPage();applyLang()}
@@ -1598,7 +1598,7 @@ window.mtMark&&mtMark(4);
 window.mtMark&&mtMark(5);
 /* App version shown at the bottom of every page; raise it with every update and note it in the change log */
 (function(){
-  var APP_VERSION = 'v2.10.6', APP_DATE = '14.11.2026';
+  var APP_VERSION = 'v2.10.7', APP_DATE = '14.11.2026';
   var f = document.createElement('div');
   f.id = 'appVersion';
   f.textContent = 'Manga Tracker ' + APP_VERSION + ' \u00b7 ' + APP_DATE;
@@ -1662,6 +1662,7 @@ window.mtMark&&mtMark(7);
         g.sort(function (a, b) { return b[1] - a[1]; });
         p.push((de() ? 'langsamste Bl\u00f6cke: ' : 'slowest blocks: ') + g.slice(0, 3).map(function (x) { return '#' + x[0] + ' ' + fmt(x[1]); }).join(', '));
       }
+      if (window.mtServerT) p.push((de() ? 'Skript: Liste ' : 'script: list ') + fmt(window.mtServerT[0]) + (de() ? ', Kategorien ' : ', categories ') + fmt(window.mtServerT[1]) + (de() ? ', Rest ' : ', rest ') + fmt(window.mtServerT[2]));
       var D = window.mtDiag;
       if (D) {
         p.push((de() ? 'beim Start ' : 'at start ') + D.vis0); d(de() ? 'im Vordergrund ab' : 'in front from', D.visAt);

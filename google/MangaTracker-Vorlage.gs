@@ -219,8 +219,8 @@ function blatt_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sh = ss.getSheetByName(SHEET) || ss.getSheets()[0];
   if (!blatt_.ok) {
-    const props = PropertiesService.getScriptProperties();
-    if (Number(props.getProperty('schema') || 0) < SCHEMA) {
+    if (Number(eig_().schema || 0) < SCHEMA) {
+      const props = PropertiesService.getScriptProperties();
       sh.getRange(1, 1, 1, HEAD.length).setValues([HEAD]).setFontWeight('bold').setBackground('#1f3864').setFontColor('#ffffff');
       sh.getRange(2, C.genres, 1000, 1).clearDataValidations();
       sh.setColumnWidth(C.overview, 260); sh.setColumnWidth(C.image, 220); sh.setColumnWidth(C.imageSrc, 220);
@@ -257,9 +257,40 @@ function datum_(v) { return v instanceof Date ? Utilities.formatDate(v, TZ, 'yyy
 
 function alle_() {
   const sh = blatt_(); const n = sh.getLastRow() - 1; if (n < 1) return [];
-  const tz = TZ;
-  const d = v => v instanceof Date ? Utilities.formatDate(v, tz, 'yyyy-MM-dd') : (v || null);
-  return sh.getRange(2, 1, n, HEAD.length).getValues().filter(r => r[C.title - 1] !== '').map(ding_);
+  return zeilenLesen_(sh, n).map(ding_);
+}
+
+/** Liest nur die Zeilen mit Titel (v2.10.7). Die Tabelle hat durch die Checkboxen rund 1000 „belegte“ Zeilen,
+ *  auch wenn nur 150 Serien darin stehen: erst die Titelspalte lesen, dann nur die gefüllten Blöcke. */
+function zeilenLesen_(sh, n) {
+  const voll = r => r[C.title - 1] !== '';
+  if (n <= 250) return sh.getRange(2, 1, n, HEAD.length).getValues().filter(voll);
+  const tit = sh.getRange(2, C.title, n, 1).getValues();
+  const bl = []; let s = -1, leer = 0;
+  for (let i = 0; i < n; i++) {
+    if (tit[i][0] !== '') { if (s < 0) s = i; leer = 0; }
+    else if (s >= 0 && ++leer > 40) { bl.push([s, i - leer - s + 1]); s = -1; leer = 0; }   // Lücken bis 40 Zeilen bleiben im Block
+  }
+  if (s >= 0) bl.push([s, n - leer - s]);
+  if (!bl.length) return [];
+  if (bl.length > 4) return sh.getRange(2, 1, n, HEAD.length).getValues().filter(voll);    // sehr zerstückelt: ein Lesevorgang ist schneller
+  let out = [];
+  bl.forEach(b => { out = out.concat(sh.getRange(b[0] + 2, 1, b[1], HEAD.length).getValues().filter(voll)); });
+  return out;
+}
+
+/** Erste ganz leere Zeile im vorbereiteten Bereich (damit neue Serien nicht hinter Zeile 1000 landen). 0 = keine gefunden. */
+function freieZeile_(sh) {
+  const n = sh.getLastRow() - 1; if (n < 1) return 0;
+  const tit = sh.getRange(2, C.title, n, 1).getValues();
+  let versuche = 0;
+  for (let i = 0; i < n && versuche < 3; i++) {
+    if (tit[i][0] !== '') continue;
+    versuche++;
+    const row = sh.getRange(i + 2, 1, 1, HEAD.length).getValues()[0];
+    if (row.every(c => c === '' || c === false)) return i + 2;
+  }
+  return 0;
 }
 
 /** Eine Tabellenzeile als Serie (für die ganze Liste und für eine einzelne Zeile nach dem Speichern). */
@@ -379,7 +410,8 @@ function anlegen_(o) {
     const k = Object.keys(C).find(key => C[key] === i + 1);
     return k === 'id' ? id : zelle_(k, o[k]);
   });
-  sh.appendRow(row);
+  const frei = freieZeile_(sh);
+  if (frei) sh.getRange(frei, 1, 1, HEAD.length).setValues([row]); else sh.appendRow(row);
   if (!o.image && !o.desc && !o.descDe) planeImport_();
   planeLauf_('neuesteErmitteln');
   planeLauf_('anilistZuordnen');
@@ -1395,9 +1427,14 @@ function apiEmpfehlungAufnehmen(key, id) {
 const APP_PAGE = 'https://lobi1994.github.io/Manga-Tracker/';
 
 /** Schlüssel dieser Tabelle: aus den Skripteigenschaften, sonst der alte feste Schlüssel. */
+/** Alle Skripteigenschaften, pro Aufruf nur einmal von Google geholt (v2.10.7: weniger Einzelabfragen = schneller). */
+function eig_() {
+  if (!eig_.p) { try { eig_.p = PropertiesService.getScriptProperties().getProperties() || {}; } catch (e) { eig_.p = {}; } }
+  return eig_.p;
+}
+
 function schluessel_() {
-  let k = '';
-  try { k = PropertiesService.getScriptProperties().getProperty('appKey') || ''; } catch (e) {}
+  let k = eig_().appKey || '';
   if (!k && typeof KEY !== 'undefined') k = KEY;
   return k || '';
 }
@@ -1419,7 +1456,7 @@ function doPost(e) {
   }
   try {
     const body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
-    if (body.fn === 'apiListe') zeitplaeneSichern_(false);
+    if (body.fn === 'apiListe' || body.fn === 'apiStart') zeitplaeneSichern_(false);
     const fn = String(body.fn || '');
     const k = schluessel_();
     if (!k || body.key !== k) throw new Error('Kein Zugriff');
@@ -1472,7 +1509,7 @@ function mtEinrichten() {
   try { empfehlungenEinrichten(); } catch (e) { fehler.push('Empfehlungen: ' + (e && e.message || e)); }
   try { zeitplaeneSichern_(true); } catch (e) { fehler.push('Zeitpläne: ' + (e && e.message || e)); }
   if (fehler.length) ui.alert('Manga Tracker – Hinweis', 'Nicht alles konnte eingerichtet werden:\n\n' + fehler.join('\n'), ui.ButtonSet.OK);
-  if (!schluessel_()) props.setProperty('appKey', zufallsSchluessel_());
+  if (!schluessel_()) { props.setProperty('appKey', zufallsSchluessel_()); eig_.p = null; }
   ui.alert('Manga Tracker',
     'Fertig eingerichtet.\n\nNächster Schritt (nur einmal):\nErweiterungen → Apps Script → Bereitstellen → Neue Bereitstellung → Typ „Web-App“\n' +
     '• Ausführen als: Ich\n• Zugriff: Jeder\n→ Bereitstellen.\n\nDanach hier im Menü „Manga Tracker → App-Link anzeigen“ wählen.',
@@ -1539,7 +1576,7 @@ function mtNeuerSchluessel() {
   const ui = SpreadsheetApp.getUi();
   const r = ui.alert('Neuen Schlüssel erzeugen?', 'Danach musst du den Einrichtungs-Link neu öffnen und den Schlüssel in deinen Kurzbefehlen ersetzen.', ui.ButtonSet.OK_CANCEL);
   if (r !== ui.Button.OK) return;
-  PropertiesService.getScriptProperties().setProperty('appKey', zufallsSchluessel_());
+  PropertiesService.getScriptProperties().setProperty('appKey', zufallsSchluessel_()); eig_.p = null;
   mtAppLink();
 }
 
@@ -1554,8 +1591,8 @@ function mtLinkAendern() { if (mtAppLinkEintragen()) mtAppLink(); }
 /** Legt die Zeitpläne für Kapitelprüfung (4× täglich) und Mail (18 Uhr) an, falls sie fehlen.
  *  force=false: höchstens alle 6 Stunden nachsehen. Gibt die angelegten Zeitpläne zurück. */
 function zeitplaeneSichern_(force) {
+  if (!force && Date.now() - Number(eig_().trgChk || 0) < 6 * 3600 * 1000) return [];
   const props = PropertiesService.getScriptProperties();
-  if (!force && Date.now() - Number(props.getProperty('trgChk') || 0) < 6 * 3600 * 1000) return [];
   props.setProperty('trgChk', String(Date.now()));
   const neu = [];
   try {
@@ -2180,18 +2217,25 @@ function apiStart(key, have) {
   check_(key);
   const t0 = Date.now();
   const items = alle_();
+  const t1 = Date.now();
   const categories = kategorien_();
-  const props = PropertiesService.getScriptProperties().getProperties();
+  const t2 = Date.now();
+  const props = eig_();
   const lesen = function (k, leer) { try { return JSON.parse(props[k] || 'null') || leer; } catch (e) { return leer; } };
   const rev = Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5,
     JSON.stringify([items, categories]), Utilities.Charset.UTF_8)).slice(0, 16);
+  // Tabellen-Link: einmal merken, statt ihn bei jedem Start bei Google abzufragen
+  let url = props.sheetUrl || '';
+  if (!url) { url = SpreadsheetApp.getActiveSpreadsheet().getUrl(); try { PropertiesService.getScriptProperties().setProperty('sheetUrl', url); } catch (e) {} }
   const out = {
     rev: rev, categories: categories, prefs: lesen('prefs', {}),
     filters: lesen('filters', null), siteGone: lesen('siteGone', {}),
     bg: hintergrundInfo_(props.bgId || ''),
-    sheetUrl: SpreadsheetApp.getActiveSpreadsheet().getUrl()
+    sheetUrl: url
   };
   if (have && have === rev) out.same = true; else out.items = items;
+  // Zeiten in Millisekunden (für die Detailzeile der App): Liste lesen, Kategorien lesen, Rest
   out.ms = Date.now() - t0;
+  out.t = [t1 - t0, t2 - t1, Date.now() - t2];
   return out;
 }

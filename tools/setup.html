@@ -93,7 +93,7 @@
       if (!window.mtReq) { var rq = window.mtReq = { sent: performance.now() }; bundle.then(function () { rq.back = performance.now(); }, function () {}); } }
     return bundle.then(function (s) {
       s = s || {};
-      if (fn === 'apiListe') return { items: s.items, same: !!s.same, rev: s.rev, categories: s.categories, prefs: s.prefs, ms: s.ms };
+      if (fn === 'apiListe') return { items: s.items, same: !!s.same, rev: s.rev, categories: s.categories, prefs: s.prefs, ms: s.ms, t: s.t };
       if (fn === 'apiInfo') return { sheetUrl: s.sheetUrl };
       if (fn === 'apiSeitenStatus') return s.siteGone || {};
       if (fn === 'apiFilterLesen') return s.filters || null;

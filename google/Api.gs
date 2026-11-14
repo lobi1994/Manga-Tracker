@@ -9,9 +9,14 @@
 const APP_PAGE = 'https://lobi1994.github.io/Manga-Tracker/';
 
 /** Schlüssel dieser Tabelle: aus den Skripteigenschaften, sonst der alte feste Schlüssel. */
+/** Alle Skripteigenschaften, pro Aufruf nur einmal von Google geholt (v2.10.7: weniger Einzelabfragen = schneller). */
+function eig_() {
+  if (!eig_.p) { try { eig_.p = PropertiesService.getScriptProperties().getProperties() || {}; } catch (e) { eig_.p = {}; } }
+  return eig_.p;
+}
+
 function schluessel_() {
-  let k = '';
-  try { k = PropertiesService.getScriptProperties().getProperty('appKey') || ''; } catch (e) {}
+  let k = eig_().appKey || '';
   if (!k && typeof KEY !== 'undefined') k = KEY;
   return k || '';
 }
@@ -33,7 +38,7 @@ function doPost(e) {
   }
   try {
     const body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
-    if (body.fn === 'apiListe') zeitplaeneSichern_(false);
+    if (body.fn === 'apiListe' || body.fn === 'apiStart') zeitplaeneSichern_(false);
     const fn = String(body.fn || '');
     const k = schluessel_();
     if (!k || body.key !== k) throw new Error('Kein Zugriff');
@@ -86,7 +91,7 @@ function mtEinrichten() {
   try { empfehlungenEinrichten(); } catch (e) { fehler.push('Empfehlungen: ' + (e && e.message || e)); }
   try { zeitplaeneSichern_(true); } catch (e) { fehler.push('Zeitpläne: ' + (e && e.message || e)); }
   if (fehler.length) ui.alert('Manga Tracker – Hinweis', 'Nicht alles konnte eingerichtet werden:\n\n' + fehler.join('\n'), ui.ButtonSet.OK);
-  if (!schluessel_()) props.setProperty('appKey', zufallsSchluessel_());
+  if (!schluessel_()) { props.setProperty('appKey', zufallsSchluessel_()); eig_.p = null; }
   ui.alert('Manga Tracker',
     'Fertig eingerichtet.\n\nNächster Schritt (nur einmal):\nErweiterungen → Apps Script → Bereitstellen → Neue Bereitstellung → Typ „Web-App“\n' +
     '• Ausführen als: Ich\n• Zugriff: Jeder\n→ Bereitstellen.\n\nDanach hier im Menü „Manga Tracker → App-Link anzeigen“ wählen.',
@@ -153,7 +158,7 @@ function mtNeuerSchluessel() {
   const ui = SpreadsheetApp.getUi();
   const r = ui.alert('Neuen Schlüssel erzeugen?', 'Danach musst du den Einrichtungs-Link neu öffnen und den Schlüssel in deinen Kurzbefehlen ersetzen.', ui.ButtonSet.OK_CANCEL);
   if (r !== ui.Button.OK) return;
-  PropertiesService.getScriptProperties().setProperty('appKey', zufallsSchluessel_());
+  PropertiesService.getScriptProperties().setProperty('appKey', zufallsSchluessel_()); eig_.p = null;
   mtAppLink();
 }
 
@@ -168,8 +173,8 @@ function mtLinkAendern() { if (mtAppLinkEintragen()) mtAppLink(); }
 /** Legt die Zeitpläne für Kapitelprüfung (4× täglich) und Mail (18 Uhr) an, falls sie fehlen.
  *  force=false: höchstens alle 6 Stunden nachsehen. Gibt die angelegten Zeitpläne zurück. */
 function zeitplaeneSichern_(force) {
+  if (!force && Date.now() - Number(eig_().trgChk || 0) < 6 * 3600 * 1000) return [];
   const props = PropertiesService.getScriptProperties();
-  if (!force && Date.now() - Number(props.getProperty('trgChk') || 0) < 6 * 3600 * 1000) return [];
   props.setProperty('trgChk', String(Date.now()));
   const neu = [];
   try {
