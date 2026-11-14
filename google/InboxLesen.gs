@@ -5,7 +5,7 @@
  *  Die App zeigt sie unter „Instagram-Ideen“ mit „Hinzufügen“ / „Nicht hinzufügen“. Angelegt wird nichts von selbst.
  *  Kostenlos: es werden nur Google-Dienste und die freien Schnittstellen von MangaUpdates und AniList benutzt. */
 
-const IG_MAX_BILDER = 10, IG_MAX_TITEL = 12;
+const IG_MAX_BILDER = 10;
 
 function igJson_(v) { try { const a = JSON.parse(String(v || '') || 'null'); return Array.isArray(a) ? a : null; } catch (e) { return null; } }
 
@@ -43,92 +43,148 @@ function igAuswerten_(html) {
   return { caption: caption, bilder: bilder.slice(0, IG_MAX_BILDER), video: /is_video\\*"\s*:\s*true/.test(html), ok: !!m || bilder.length > 0 };
 }
 
-/** Ein Titelvorschlag → bester Treffer bei MangaUpdates (Kapitelstand von dort, nicht aus dem Beitrag), sonst AniList. */
-function igTreffer_(q) {
-  const cache = CacheService.getScriptCache();
-  const ck = 'igt:' + norm_(q).slice(0, 200);
-  try { const c = cache.get(ck); if (c) return JSON.parse(c); } catch (e) {}
-  let out = null;
-  const pass = function (titel, alt) {
-    const a = titelNorm_(q);
-    return [titel].concat(alt || []).filter(Boolean).reduce(function (best, t) {
-      const b = titelNorm_(t);
-      if (!a || !b) return best;
-      if (a === b) return 1;
-      const ta = toks_(q), tb = toks_(t);
-      const j = ta.length && tb.length ? jacc_(ta, tb) : 0;
-      const teil = (a.length >= 8 && b.indexOf(a) >= 0) || (b.length >= 8 && a.indexOf(b) >= 0) ? 0.75 : 0;
-      return Math.max(best, j, teil);
-    }, 0);
-  };
-  const s = muJson_('post', '/series/search', { search: q, perpage: 4 });
-  let best = null;
-  ((s && s.results) || []).forEach(function (hit) {
-    const rec = hit.record || {};
-    if (!rec.series_id || /novel/i.test(rec.type || '')) return;
-    const p = pass(decode_(String(rec.title || '')), hit.hit_title ? [decode_(String(hit.hit_title))] : []);
-    if (!best || p > best.p) best = { rec: rec, p: p };
-  });
-  if (best && best.p >= 0.6) {
-    const rec = best.rec, d = muJson_('get', '/series/' + rec.series_id) || {};
-    out = {
-      title: decode_(String(rec.title || d.title || '')), type: rec.type || d.type || '', year: rec.year || d.year || '',
-      latest: zahl_(d.latest_chapter != null ? d.latest_chapter : rec.latest_chapter), completed: d.completed === true,
-      image: (d.image && d.image.url && (d.image.url.original || d.image.url.thumb)) || (rec.image && rec.image.url && (rec.image.url.original || rec.image.url.thumb)) || '',
-      link: rec.url || d.url || '', sure: best.p >= 0.9
-    };
-  } else {
-    let al = null, ap = 0;
-    (alSuche_(q) || []).slice(0, 4).forEach(function (m) {
-      const t = m.title || {};
-      const p = pass(t.english || t.romaji || '', [t.romaji, t.english, t.native].concat(m.synonyms || []));
-      if (p > ap) { ap = p; al = m; }
+/** Wie gut passt ein gelesener Text zu einem Titel (oder einem seiner anderen Namen)? 1 = gleich, ab 0,6 = ähnlich. */
+function igPass_(q, namen) {
+  const a = titelNorm_(q), ta = toks_(q);
+  return (namen || []).filter(Boolean).reduce(function (best, t) {
+    const b = titelNorm_(t);
+    if (!a || !b) return best;
+    if (a === b) return 1;
+    const tb = toks_(t);
+    const j = ta.length && tb.length ? jacc_(ta, tb) : 0;
+    const teil = (a.length >= 8 && b.indexOf(a) >= 0) || (b.length >= 8 && a.indexOf(b) >= 0) ? 0.75 : 0;
+    return Math.max(best, j, teil);
+  }, 0);
+}
+
+/** Mehrere Titel in EINER Anfrage bei AniList suchen (v2.11.1). Vorher war es eine Anfrage pro Text mit Pause dazwischen –
+ *  bei Beiträgen mit vielen Titeln reichte das nur für die ersten. Gibt pro Text den besten Treffer zurück (oder null). */
+function igSucheViele_(qs) {
+  const out = qs.map(function () { return null; });
+  const F = 'id siteUrl countryOfOrigin status chapters title{romaji english} synonyms coverImage{medium}';
+  for (let o = 0; o < qs.length; o += 10) {
+    const teil = qs.slice(o, o + 10), vars = {};
+    const kopf = teil.map(function (q, i) { vars['s' + i] = q; return '$s' + i + ':String'; }).join(',');
+    const rumpf = teil.map(function (q, i) { return 'a' + i + ':Page(perPage:4){media(search:$s' + i + ',type:MANGA,format_not:NOVEL){' + F + '}}'; }).join(' ');
+    const d = alFetch_('query(' + kopf + '){' + rumpf + '}', vars);
+    if (!d) continue;
+    teil.forEach(function (q, i) {
+      let best = null, bp = 0;
+      ((d['a' + i] && d['a' + i].media) || []).forEach(function (m) {
+        const t = m.title || {};
+        const p = igPass_(q, [t.english, t.romaji].concat(m.synonyms || []));
+        if (p > bp) { bp = p; best = m; }
+      });
+      if (best && bp >= 0.6) {
+        const t = best.title || {};
+        out[o + i] = { p: bp, title: decode_(t.english || t.romaji || ''), type: best.countryOfOrigin === 'KR' ? 'Manhwa' : best.countryOfOrigin === 'CN' ? 'Manhua' : 'Manga',
+          year: '', latest: best.chapters || null, completed: best.status === 'FINISHED', image: (best.coverImage && best.coverImage.medium) || '', link: best.siteUrl || '' };
+      }
     });
-    if (al && ap >= 0.6) {
-      const t = al.title || {};
-      out = { title: decode_(t.english || t.romaji || ''), type: al.countryOfOrigin === 'KR' ? 'Manhwa' : al.countryOfOrigin === 'CN' ? 'Manhua' : 'Manga',
-        year: '', latest: al.chapters || null, completed: al.status === 'FINISHED',
-        image: (al.coverImage && al.coverImage.large) || '', link: al.siteUrl || '', sure: ap >= 0.9 };
-    }
   }
-  try { cache.put(ck, JSON.stringify(out), 6 * 3600); } catch (e) {}
   return out;
 }
 
-/** Einen Beitrag auslesen: Beschreibung + Bildtexte → Titel, die es wirklich gibt. Gibt { cand, note } zurück. */
+/** „STELLAR SWORDMASTER“ → „Stellar Swordmaster“ (nur wenn der Text ganz in Großbuchstaben gelesen wurde). */
+function igSchoen_(t) {
+  t = String(t || '');
+  if (/[a-z]/.test(t)) return t;
+  const klein = /^(a|an|the|of|in|on|to|for|and|or|as|at|by|from|with|is)$/;
+  return t.toLowerCase().split(' ').map(function (w, i) { return i && klein.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1); }).join(' ');
+}
+
+/** Einen Beitrag auslesen: Beschreibung + Bildtexte → Titel. Gibt { cand, note, text } zurück.
+ *  Reihenfolge: 1. Texte, die auf fast jedem Bild stehen (Kopfzeile, Account-Name), fliegen raus.
+ *  2. Jede mögliche Titel-Variante wird zuerst mit deiner eigenen Liste verglichen (ohne Internet),
+ *  3. der Rest gesammelt bei AniList gesucht. 4. Pro Bild gewinnt die längste Variante mit Treffer;
+ *  was nach Titel aussieht, aber nirgends gefunden wurde, wird als „nicht gefunden“ trotzdem angeboten. */
 function igLesen_(link, html, ende) {
   let seite = html ? { code: 200, html: String(html) } : igEinbettung_(link);
   if (seite.code !== 200) return { cand: null, note: 'Fehler: Instagram antwortet mit ' + seite.code };
   const a = igAuswerten_(seite.html);
-  if (!a.ok) return { cand: null, note: 'Fehler: Beitrag nicht lesbar (Instagram verlangt eine Anmeldung)' };
+  if (!a.ok) return { cand: null, note: 'Fehler: Beitrag nicht lesbar (Instagram zeigt ihn nur in der App oder nach Anmeldung)' };
   const ocr = []; let ocrFehler = '';
   for (let i = 0; i < a.bilder.length; i++) {
     if (ende && Date.now() > ende) break;
     const o = bildText_(a.bilder[i]);
     if (o.text) ocr.push(o.text); else if (o.error && !ocrFehler) ocrFehler = o.error;
   }
-  const namen = igKandidaten_([a.caption], ocr, true);
-  const list = alle_(), cand = [], doppelt = {};
-  for (let i = 0; i < namen.length && cand.length < IG_MAX_TITEL; i++) {
-    if (ende && Date.now() > ende) break;
-    const t = igTreffer_(namen[i]);
-    if (!t || !t.title) continue;
-    const n = titelNorm_(t.title);
-    if (doppelt[n]) continue;
-    doppelt[n] = 1;
-    const hit = list.find(function (it) {
-      return [it.title, it.dbTitle].concat(it.alt || []).filter(Boolean).some(function (x) { return titelNorm_(x) === n; });
-    });
-    cand.push({ q: namen[i], title: t.title, type: t.type, year: t.year, latest: t.latest, completed: t.completed, image: t.image, link: t.link, sure: t.sure, inList: hit ? hit.title : null, state: '' });
+  // 1. Zeilen, die auf mindestens der Hälfte der Bilder stehen (ab 3 Bildern), sind kein Titel
+  const zahl = {};
+  ocr.forEach(function (t) { const s = {}; t.split(/\n+/).forEach(function (l) { const k = titelNorm_(l); if (k && !s[k]) { s[k] = 1; zahl[k] = (zahl[k] || 0) + 1; } }); });
+  const grenze = Math.max(3, Math.ceil(ocr.length / 2));
+  const oft = Object.keys(zahl).filter(function (k) { return ocr.length >= 3 && zahl[k] >= grenze; }).sort(function (x, y) { return y.length - x.length; });
+  const nurKopf = function (q) {                    // besteht der Text nur aus solchen Zeilen (und Zahlen)?
+    let r = ' ' + titelNorm_(q) + ' ';
+    oft.forEach(function (k) { r = r.split(' ' + k + ' ').join(' '); });
+    return !r.replace(/\d+/g, '').trim();
+  };
+  const texte = ocr;
+  // Varianten je Quelle (Bild 1, Bild 2, …, Beschreibung)
+  const quellen = texte.map(function (t) { return igKandidaten_([], [t], true).filter(function (q) { return !nurKopf(q); }); });
+  if (a.caption) quellen.push(igKandidaten_([a.caption], [], true));
+  // 2. eigene Liste
+  const list = alle_(), eigen = {};
+  list.forEach(function (it) { [it.title, it.dbTitle].concat(it.alt || []).filter(Boolean).forEach(function (n) { const k = titelNorm_(n); if (k && !eigen[k]) eigen[k] = it; }); });
+  const fund = {}, offen = [];
+  quellen.forEach(function (vs) { vs.forEach(function (q) {
+    const k = titelNorm_(q); if (!k || k in fund) return;
+    if (eigen[k]) fund[k] = { p: 1, mine: eigen[k] }; else { fund[k] = null; if (offen.length < 150) offen.push(q); }
+  }); });
+  // 3. AniList (gesammelt)
+  let gesucht = 0;
+  if (!(ende && Date.now() > ende)) {
+    const r = igSucheViele_(offen); gesucht = offen.length;
+    offen.forEach(function (q, i) { if (r[i]) fund[titelNorm_(q)] = r[i]; });
   }
-  cand.sort(function (x, y) { return (y.sure ? 1 : 0) - (x.sure ? 1 : 0); });
-  const note = Utilities.formatDate(new Date(), TZ, 'dd.MM.yyyy HH:mm') + ' · ' + a.bilder.length + ' Bilder, ' + ocr.length + ' mit Text'
+  // 4. Auswahl je Quelle
+  const cand = [], doppelt = {};
+  const worte = function (q) { return titelNorm_(q).split(' ').filter(Boolean); };
+  const ueberlappt = function (q, andere) {          // teilt mehr als die Hälfte seiner Wörter mit einem schon gewählten Text
+    const n = ' ' + titelNorm_(q) + ' ', w = toks_(q);
+    return andere.some(function (o) {
+      const on = ' ' + titelNorm_(o) + ' ';
+      if (n.indexOf(on) >= 0 || on.indexOf(n) >= 0) return true;                       // der eine steckt im anderen
+      const ow = toks_(o), gem = w.filter(function (x) { return ow.indexOf(x) >= 0; }).length;
+      return gem * 2 > Math.min(w.length, ow.length);                                  // oder mehr als die Hälfte der Wörter ist gleich
+    });
+  };
+  quellen.forEach(function (vs, qi) {
+    const src = qi < texte.length ? qi + 1 : 0;      // Bildnummer, 0 = Beschreibung
+    const gewaehlt = [];
+    vs.map(function (q) { return { q: q, f: fund[titelNorm_(q)] || null, w: worte(q).length }; })
+      .filter(function (x) { return x.f && (x.f.p >= 0.9 || x.w >= 2); })
+      .sort(function (x, y) { return (y.f.p >= 0.9 ? 1 : 0) - (x.f.p >= 0.9 ? 1 : 0) || y.w - x.w; })
+      .forEach(function (x) {
+        if (ueberlappt(x.q, gewaehlt)) return;
+        gewaehlt.push(x.q);
+        const f = x.f, title = f.mine ? f.mine.title : f.title, n = titelNorm_(title);
+        if (doppelt[n]) return; doppelt[n] = 1;
+        if (f.mine) cand.push({ q: x.q, title: title, type: '', year: '', latest: f.mine.latest, completed: false, image: f.mine.image || '', link: '', sure: true, inList: title, src: src, state: '' });
+        else cand.push({ q: x.q, title: title, type: f.type, year: f.year, latest: f.latest, completed: f.completed, image: f.image, link: f.link, sure: f.p >= 0.9, inList: eigen[n] ? eigen[n].title : null, src: src, state: '' });
+      });
+    // nicht gefunden, sieht aber nach Titel aus: längste Varianten zuerst, höchstens 4 je Quelle (nur von Bildern)
+    if (!src) return;
+    let rest = 0;
+    vs.filter(function (q) { return worte(q).length >= 2 && !fund[titelNorm_(q)]; })
+      .sort(function (x, y) { return worte(y).length - worte(x).length; })
+      .forEach(function (q) {
+        if (rest >= 4 || ueberlappt(q, gewaehlt)) return;
+        gewaehlt.push(q); rest++;
+        const title = igSchoen_(q), n = titelNorm_(title);
+        if (doppelt[n]) return; doppelt[n] = 1;
+        cand.push({ q: q, title: title, type: '', year: '', latest: null, completed: false, image: '', link: '', sure: false, nohit: true, inList: null, src: src, state: '' });
+      });
+  });
+  const note = Utilities.formatDate(new Date(), TZ, 'dd.MM.yyyy HH:mm') + ' · ' + a.bilder.length + ' Bilder, ' + ocr.length + ' mit Text · '
+    + cand.filter(function (c) { return !c.nohit; }).length + ' Titel gefunden, ' + cand.filter(function (c) { return c.nohit; }).length + ' unklar, ' + gesucht + ' gesucht'
     + (a.video ? ' · Video' : '') + (ocrFehler && !ocr.length ? ' · Texterkennung: ' + ocrFehler : '');
-  return { cand: cand, note: note };
+  return { cand: cand.slice(0, 60), note: note, text: ocr.map(function (t, i) { return '[Bild ' + (i + 1) + ']\n' + t; }).join('\n\n').slice(0, 20000) };
 }
 
 function igSchreiben_(sh, row, res) {
-  sh.getRange(row, 5, 1, 2).setValues([[res.cand ? txt_(JSON.stringify(res.cand)) : '', txt_(res.note)]]);
+  // Spalte G: der gelesene Text der Bilder – zum Nachsehen, wenn Titel fehlen
+  sh.getRange(row, 5, 1, 3).setValues([[res.cand ? txt_(JSON.stringify(res.cand)) : '', txt_(res.note), txt_(res.text || '')]]);
 }
 
 /** Läuft im Hintergrund (eine Minute nach dem Teilen): liest alle offenen, noch nicht ausgelesenen Beiträge. */
@@ -241,12 +297,14 @@ function igClean_(t) {
     .replace(new RegExp('\\b\\d+\\+?\\s*(?:' + IG_CH + ')\\b\\.?', 'gi'), ' ')                // 308 Chapters
     .replace(new RegExp('\\b(?:' + IG_CH + ')\\.?\\s*[:#]?\\s*\\d+(?:\\.\\d+)?\\+?', 'gi'), ' ') // Chapter 308, Ch. 120+
     .replace(/[(\[]\s*[)\]]/g, ' ');
-  const tail = new RegExp('[\\s\\-–—|•·:,/(\\[]+(?:' + IG_STATUS + ')[\\s)\\].!]*$', 'i');
+  // „end“, „the end“, „new“, „hot“ nur nach einem Trennzeichen abschneiden – sonst wird aus „The Beginning After the End“ ein halber Titel
+  const tail = new RegExp('(?:[\\s\\-–—|•·:,/(\\[]+(?:' + IG_STATUS.replace('|end|the end|new|hot', '') + ')|\\s*[\\-–—|•·:,/(\\[]+\\s*(?:end|the end|new|hot))[\\s)\\].!]*$', 'i');
   const head = new RegExp('^[\\s(\\[]*(?:' + IG_STATUS + ')[\\s)\\]]*[\\-–—|•·:,/]+', 'i');
   for (let k = 0; k < 4; k++) t = t.replace(tail, '').replace(head, '').replace(/\s+[|Il1]\s*$/, '');
   return t.replace(/[\s\-–—|•·:,/]+$/g, '').replace(/^[\s\-–—|•·:,/]+/g, '').replace(/\s+/g, ' ').trim();
 }
 const IG_TAGNOISE = /manhwa|manga|manhua|webtoon|anime|otaku|recommend|reels?|fyp|foryou|explore|viral|trend|edit|amv|follow/i;
+const IG_KEIN_TEIL = /^(ongoing|completed?|finished|hiatus|dropped|cancell?ed|chapters?|episodes?|new|hot|top|best|status|rating|genres?|type|manhwa|manga|manhua|webtoons?|comics?|recommendations?|author|artist|story|art|summary|synopsis|release|published)$/i;
 function igKandidaten_(list, ocr, alles) {
   const c = new Map();
   const add = (t, s) => {
@@ -283,26 +341,36 @@ function igKandidaten_(list, ocr, alles) {
       .map((l) => {
         if (!/[A-Za-z]{2}/.test(l) || /@|https?:|www\.|\.com\b/i.test(l) || /^(read|swipe|save|link in bio|read now|swipe left)\b/i.test(l)) return null;
         const c2 = igClean_(l);
-        if (!c2 || igIsInfo_(c2.replace(/[^\p{L}\d\s\/.:+★⭐-]/gu, '').trim())) return null;
+        if (!c2) return null;
+        if (igIsInfo_(c2.replace(/[^\p{L}\d\s\/.:+★⭐-]/gu, '').trim())) {
+          // Skript (v2.11.1): ein einzelnes Genre-Wort kann der Rest eines Titels sein („STANDARD OF“ + „REINCARNATION“).
+          // Allein ist es kein Vorschlag, mit der Nachbarzeile zusammen aber schon.
+          return alles && /^[A-Za-z][A-Za-z'-]{3,}$/.test(c2) && !IG_KEIN_TEIL.test(c2) ? { t: c2, weak: true } : null;
+        }
         // A line that had a chapter count or status removed is a complete title on its own: never join it with neighbours
         const whole = c2.replace(/\s+/g, ' ').toLowerCase() !== l.replace(/\s+/g, ' ').trim().toLowerCase();
         return whole ? { t: c2, whole: true } : c2;
       });
-    const joinable = (x) => typeof x === 'string';
+    const joinable = (x) => typeof x === 'string' || !!(x && x.weak);
+    const txt = (x) => typeof x === 'string' ? x : x.t;
+    const fest = (g) => g.some((x) => typeof x === 'string');           // mindestens eine echte Titelzeile
     lines.forEach((l, i) => {
       if (!l) return;
-      if (typeof l === 'object') { add(l.t, 2.5); return; }
-      const words = l.split(' ').length;
-      if (words <= 9 && !(words === 1 && l.length < 5)) add(l, 1.5);
-      const two = lines.slice(i, i + 2), three = lines.slice(i, i + 3);
-      if (two.length === 2 && two.every((x) => joinable(x) && x.split(' ').length <= 4)) add(two.join(' '), 2);
-      if (three.length === 3 && three.every((x) => joinable(x) && x.split(' ').length <= 3)) add(three.join(' '), 2.5);
+      if (typeof l === 'object' && !l.weak) { add(l.t, 2.5); return; }
+      if (typeof l === 'string') {
+        const words = l.split(' ').length;
+        if (words <= 9 && !(words === 1 && l.length < 5)) add(l, 1.5);
+      }
+      const two = lines.slice(i, i + 2), three = lines.slice(i, i + 3), max3 = alles ? 4 : 3;
+      if (two.length === 2 && fest(two) && two.every((x) => joinable(x) && txt(x).split(' ').length <= 4)) add(two.map(txt).join(' '), 2);
+      if (three.length === 3 && fest(three) && three.every((x) => joinable(x) && txt(x).split(' ').length <= max3)
+        && three.map(txt).join(' ').split(' ').length <= 10) add(three.map(txt).join(' '), 2.5);
     });
   });
   // Drop pieces of a title that is already suggested in full ("MOUNT HUA" next to "Return of the Mount Hua Sect")
   const all = [...c.values()].sort((a, b) => b.s - a.s || b.t.length - a.t.length);
   // Skript: alle Varianten zurückgeben – welche davon ein echter Titel ist, entscheidet der Abgleich mit MangaUpdates/AniList
-  if (alles) return all.slice(0, 30).map((o) => o.t);
+  if (alles) return all.slice(0, 60).map((o) => o.t);
   const kept = [];
   all.forEach((o) => {
     const k = o.t.toLowerCase();

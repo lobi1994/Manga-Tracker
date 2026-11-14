@@ -1391,7 +1391,7 @@ applyPage(); applyLang(); reload(false);
 <script>
 /* App version shown at the bottom of every page; raise it with every update and note it in the change log */
 (function(){
-  var APP_VERSION = 'v2.11.0', APP_DATE = '14.11.2026';
+  var APP_VERSION = 'v2.11.1', APP_DATE = '14.11.2026';
   var f = document.createElement('div');
   f.id = 'appVersion';
   f.textContent = 'Manga Tracker ' + APP_VERSION + ' \u00b7 ' + APP_DATE;
@@ -2275,6 +2275,8 @@ applyPage(); applyLang(); reload(false);
     ch: function (n) { return (de() ? 'Kap. ' : 'ch. ') + n; }, done: ['completed', 'abgeschlossen'],
     searchPh: ['Title missing or wrong? Search here', 'Titel fehlt oder falsch? Hier suchen'], search: ['Search', 'Suchen'],
     noHit: ['Nothing found for this title.', 'Zu diesem Titel wurde nichts gefunden.'],
+    nohit: ['Not found on AniList. Add it with this title, or search below.', 'Bei AniList nicht gefunden. Mit diesem Titel hinzuf\u00fcgen oder unten suchen.'],
+    inListN: function (n) { return de() ? 'Schon in deiner Liste (' + n + '):' : 'Already in your list (' + n + '):'; },
     st: { offen: ['open', 'offen'], erledigt: ['done', 'erledigt'], verworfen: ['not interested', 'kein Interesse'] }
   };
   function tx(k) { var v = TX[k]; return typeof v === 'function' ? v : v[de() ? 1 : 0]; }
@@ -2303,7 +2305,7 @@ applyPage(); applyLang(); reload(false);
     else if (state === 'skipped') bt = '<span class="note">' + tx('skipped') + '</span> <button type="button" ' + attrs + ' data-ig="undo">' + tx('undo') + '</button>';
     else bt = '<button type="button" class="primary" ' + attrs + ' data-ig="add">' + tx('add') + '</button><button type="button" ' + attrs + ' data-ig="skip">' + tx('skip') + '</button>';
     return '<div class="igc' + (state === 'skipped' ? ' off' : '') + '">' + img + '<div class="tx"><b>' + esc(c.title) + '</b><span class="note">' + meta(c) + '</span>'
-      + (c.sure === false && c.q && !state ? '<div class="igwarn">' + esc(tx('unsure')(c.q)) + '</div>' : '')
+      + (c.nohit && !state ? '<div class="igwarn">' + tx('nohit') + '</div>' : c.sure === false && c.q && !state ? '<div class="igwarn">' + esc(tx('unsure')(c.q)) + '</div>' : '')
       + '<div class="bt">' + bt + '</div></div></div>';
   }
   function post(x, xi) {
@@ -2315,7 +2317,10 @@ applyPage(); applyLang(); reload(false);
     else if (!x.read && x.status === 'offen') h += '<div class="note" style="margin-top:8px">' + tx('pending') + '</div>';
     else if (/^Fehler/.test(x.read || '')) h += '<div class="igwarn" style="margin-top:8px">' + esc(x.read) + '</div><div class="note">' + tx('none') + '</div>';
     else if (x.read && !(x.cand && x.cand.length)) h += '<div class="note" style="margin-top:8px">' + tx('none') + '</div>';
-    (x.cand || []).forEach(function (c, ci) { h += card(c, 'data-x="' + xi + '" data-c="' + ci + '"', c.state); });
+    // v2.11.1: titles that are already in your list take one line together; the cards are for what you still have to decide
+    var mine = (x.cand || []).filter(function (c) { return c.inList && !c.state; });
+    if (mine.length) h += '<div class="note" style="margin-top:10px"><b>' + tx('inListN')(mine.length) + '</b> ' + mine.map(function (c) { return esc(c.inList); }).join(' \u00b7 ') + '</div>';
+    (x.cand || []).forEach(function (c, ci) { if (c.inList && !c.state) return; h += card(c, 'data-x="' + xi + '" data-c="' + ci + '"', c.state); });
     (found[x.url] || []).forEach(function (c, fi) { h += card(c, 'data-x="' + xi + '" data-f="' + fi + '"', c.state); });
     if (found[x.url] && !found[x.url].length) h += '<div class="note" style="margin-top:8px">' + tx('noHit') + '</div>';
     if (x.title && !(x.cand && x.cand.length)) h += '<div class="note" style="margin-top:8px">' + esc(x.title) + '</div>';

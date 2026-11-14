@@ -4,7 +4,7 @@
  *  Kapitelzahlen kommen kostenlos von MangaUpdates (Kapitelstand) und AniList (Ersatz). */
 
 const INBOX_SHEET = 'Inbox';
-const INBOX_HEAD = ['Link', 'Gemerkt am', 'Status', 'Titel', 'Vorschl\u00e4ge', 'Ausgelesen'];
+const INBOX_HEAD = ['Link', 'Gemerkt am', 'Status', 'Titel', 'Vorschl\u00e4ge', 'Ausgelesen', 'Gelesener Text'];
 const MU = 'https://api.mangaupdates.com/v1';
 
 function inboxBlatt_() {
