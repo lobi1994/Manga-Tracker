@@ -198,6 +198,18 @@ function igLesen_(link, html, ende) {
 }
 
 /** Der Teil ohne Instagram und Texterkennung: aus den gelesenen Texten die Titel machen. */
+/** Wörter eines Titels für den ungefähren Vergleich mit der eigenen Liste: Tausenderpunkte und „'s“ fallen weg. */
+function igWorte_(s) {
+  return titelNorm_(String(s || '').replace(/(\d)[.,](?=\d{3}(?!\d))/g, '$1').replace(/['’`´]s(?![a-z])/gi, '')).split(' ').filter(Boolean);
+}
+/** Zwei Wörter, die sich nur um einen Buchstaben unterscheiden (ab 5 Buchstaben, keine Zahlen). */
+function igFastGleich_(a, b) {
+  if (a === b) return true;
+  if (/\d/.test(a + b) || Math.min(a.length, b.length) < 5 || Math.abs(a.length - b.length) > 1) return false;
+  if (a.length < b.length) { const t = a; a = b; b = t; }
+  let i = 0; while (i < b.length && a[i] === b[i]) i++;
+  return a.length === b.length ? a.slice(i + 1) === b.slice(i + 1) : a.slice(i + 1) === b.slice(i);
+}
 function igTitel_(ocr, caption, ende, bilder, video, ocrFehler) {
   // Zeilen, die auf mehreren Bildern stehen, sind kein Titel; ihre Wörter kennzeichnen Schildchen
   const zahl = {};
@@ -215,10 +227,25 @@ function igTitel_(ocr, caption, ende, bilder, video, ocrFehler) {
   // 2. eigene Liste
   const list = alle_(), eigen = {};
   list.forEach(function (it) { [it.title, it.dbTitle].concat(it.alt || []).filter(Boolean).forEach(function (n) { const k = titelNorm_(n); if (k && !eigen[k]) eigen[k] = it; }); });
+  // v2.11.5: auch fast gleiche Schreibweisen zählen als „schon in deiner Liste“ – „66,666“ = „66666“, „Academy's“ = „Academy“,
+  // „Honours“ = „Honors“, ein falsch gelesener Buchstabe („Swordmasterx“). Gleich viele Wörter, jedes Wort gleich oder um einen Buchstaben verschieden.
+  const eigenUngefaehr = [], schon = {};
+  list.forEach(function (it) { [it.title, it.dbTitle].concat(it.alt || []).filter(Boolean).forEach(function (n) { const w = igWorte_(n), k = w.join(' '); if (w.length >= 2 && !schon[k]) { schon[k] = 1; eigenUngefaehr.push({ w: w, it: it }); } }); });
+  const ungefaehr = function (q) {
+    const w = igWorte_(q); if (w.length < 2) return null;
+    for (let i = 0; i < eigenUngefaehr.length; i++) {
+      const o = eigenUngefaehr[i].w; if (o.length !== w.length) continue;
+      let fehler = 0, ok = true;
+      for (let j = 0; j < w.length && ok; j++) { if (w[j] === o[j]) continue; if (igFastGleich_(w[j], o[j]) && ++fehler <= 2) continue; ok = false; }
+      if (ok) return eigenUngefaehr[i].it;
+    }
+    return null;
+  };
   const fund = {}, offen = [];
   const merke = function (q) {
     const k = titelNorm_(q); if (!k || k in fund) return;
-    if (eigen[k]) fund[k] = { p: 1, mine: eigen[k] }; else { fund[k] = null; if (offen.length < 200) offen.push(q); }
+    const m = eigen[k] || ungefaehr(q);
+    if (m) fund[k] = { p: 1, mine: m }; else { fund[k] = null; if (offen.length < 200) offen.push(q); }
   };
   quellen.forEach(function (q) { if (q.liste) q.liste.forEach(function (e) { e.vars.forEach(merke); }); else q.vs.forEach(merke); });
   // 3. AniList (gesammelt)
