@@ -123,10 +123,15 @@ function igListe_(text, oftWort) {
   const lines = String(text || '').split(/\n+/).map(function (l) { return l.trim(); }).filter(Boolean);
   const ST = /^[\s•·*\-–]*(?:ongoing|completed?|finished|hiatus|on hiatus|dropped|cancell?ed|laufend|abgeschlossen|pausiert)\s*$/i;
   const tagWort = function (x) { return !!oftWort[x] || /^\d+$/.test(x) || IG_NOISE.test(x) || igIsInfo_(x); };
+  // v2.11.4: „A RETURNER'S MAGIC SHOULD BE SPECIAL 269 CHAPTERS COMPLETE“ – Titel und Kapitelangabe in EINER Zeile
+  const IN = /^(.*?[A-Za-z].*?)[\s|•·:,\-–]+(\d{1,4}\+?)\s*(?:chapters?|chaps?|chs?\.?|episodes?|eps?\.?|kapitel)\b.*$/i;
   const art = lines.map(function (l) {
-    if (/^\d{1,4}\+?$/.test(l)) return /^0\d$/.test(l) ? 'x' : 'num';                                  // „144+“; „02“ ist die laufende Nummer
+    if (/^\d{1,4}\+?$/.test(l)) return /^0\d$/.test(l) ? 'x' : 'num';
+    if (IN.test(l) && /[A-Za-z]{3}/.test(igClean_(l.match(IN)[1]))) return 'ti';
+    if (/^(?:[A-Za-z])*([A-Za-z])\1{3,}[A-Za-z]*$/.test(l)) return 'x';                                   // „MAAAAAAAM“: Zierschrift, falsch gelesen                                  // „144+“; „02“ ist die laufende Nummer
     if (ST.test(l)) return 'st';
     if (/^[\s•·]*(?:\d{1,4}\+?\s*)?(?:chapters?|chaps?|episodes?|kapitel)\s*$/i.test(l)) return 'ch';
+    if (/^[\s•·]*\d{1,4}\+?\s*(?:chapters?|chaps?|episodes?|kapitel)\b/i.test(l)) return 'ch';                    // „225 CHAPTERS SEASON'S END“
     if (/\b(?:chapters?|chaps?|episodes?|kapitel)\b/i.test(l) && !/[A-Za-z]{3}/.test(igClean_(l))) return 'ch';       // „275 CHAPTERS | HIATUS“ in einer Zeile
     if (/\d\s*[-–\/]\s*\d|\bof\s+\d+\b/i.test(l) || /@|https?:|www\.|\.com\b|[|]/i.test(l)) return 'x';     // 01/07, PICKS 01-04 OF 28, Adressen
     const w = titelNorm_(l).split(' ').filter(Boolean);
@@ -135,7 +140,7 @@ function igListe_(text, oftWort) {
     if (lang.every(tagWort) && !/\s(?:of|the|a|an|as|to|in|on|and|with|is|for|from)\s*$/i.test(l)) return w.length === 1 ? 'w1' : 'tag';   // „REINCARNATION OF“ ist kein Schildchen, sondern ein Titelanfang
     return /[A-Za-z]\s+\d{1,4}\+?\s*$/.test(l) ? 'ti' : 't';                                            // „GENIUS DARK KNIGHT 170+“: Zahl in der Titelzeile
   });
-  const ohneZahl = function (l) { return l.replace(/\s+\d{1,4}\+?\s*$/, ''); };
+  const ohneZahl = function (l) { const m = l.match(IN); return m ? m[1] : l.replace(/\s+\d{1,4}\+?\s*$/, ''); };
   const out = [];
   for (let e = 0; e < lines.length; e++) {
     if (art[e] !== 't' && art[e] !== 'ti' && art[e] !== 'w1') continue;
@@ -162,8 +167,8 @@ function igListe_(text, oftWort) {
     }
     if (!vars.length) continue;
     let zahl = '';
-    const inl = art[e] === 'ti' ? lines[e].match(/(\d{1,4}\+?)\s*$/) : null;
-    if (inl) zahl = inl[1];
+    const inl = art[e] === 'ti' ? (lines[e].match(IN) || []).slice(1) : null;
+    if (inl && inl[1]) zahl = inl[1]; else if (inl) { const z = lines[e].match(/(\d{1,4}\+?)\s*$/); if (z) zahl = z[1]; }
     for (let j = e + 1; !zahl && j <= e + 3 && j < lines.length; j++) {
       const inCh = art[j] === 'ch' ? lines[j].match(/(\d{1,4}\+?)\s*(?:chapters?|chaps?|episodes?|kapitel)/i) : null;
       if (art[j] === 'num') zahl = lines[j]; else if (inCh) zahl = inCh[1]; else if (art[j] !== 'st' && art[j] !== 'ch') break;
@@ -247,7 +252,8 @@ function igTitel_(ocr, caption, ende, bilder, video, ocrFehler) {
         let best = null;
         e.vars.forEach(function (v) {
           const f = fund[titelNorm_(v)], w = worte(v).length;
-          if (!f || (w < 2 && e.vars.length > 1) || (f.p < 0.9 && w < 2)) return;                      // ein einzelnes Wort zählt nur, wenn der Eintrag nichts anderes hat
+          if (!f || (w < 2 && e.vars.length > 1) || (f.p < 0.9 && w < 2)) return;
+          if (w * 2 < worte(e.std).length) return;                                                    // Treffer nur für ein Stück des Titels („BLOOD HOUND“ aus „REVENGE OF THE BASKERVILLE BLOOD HOUND“)                      // ein einzelnes Wort zählt nur, wenn der Eintrag nichts anderes hat
           const rang = (f.p >= 0.9 ? 100 : 0) + f.p * 10 + w / 100;
           if (!best || rang > best.rang) best = { v: v, f: f, rang: rang };
         });
