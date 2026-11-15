@@ -8,7 +8,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Manga Tracker</title>
 <style>html:not(.mt-ready) body{visibility:hidden}</style>
-<script>window.mtMarks=[];window.mtMark=function(n){window.mtMarks.push([n,performance.now()])};(function(){var V="v2.11.2",d=document.documentElement,hold=false,want=false,touched=false;
+<script>window.mtMarks=[];window.mtMark=function(n){window.mtMarks.push([n,performance.now()])};(function(){var V="v2.11.3",d=document.documentElement,hold=false,want=false,touched=false;
 var D=window.mtDiag={vis0:document.visibilityState,visAt:null,chkAt:null,gap:0,gapAt:0},hb=performance.now();
 var iv=setInterval(function(){var n=performance.now();if(n>20000){clearInterval(iv);return}if(n-hb>D.gap){D.gap=n-hb;D.gapAt=hb}hb=n},100);
 document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible"&&D.visAt==null)D.visAt=performance.now()});
@@ -1598,7 +1598,7 @@ window.mtMark&&mtMark(4);
 window.mtMark&&mtMark(5);
 /* App version shown at the bottom of every page; raise it with every update and note it in the change log */
 (function(){
-  var APP_VERSION = 'v2.11.2', APP_DATE = '14.11.2026';
+  var APP_VERSION = 'v2.11.3', APP_DATE = '14.11.2026';
   var f = document.createElement('div');
   f.id = 'appVersion';
   f.textContent = 'Manga Tracker ' + APP_VERSION + ' \u00b7 ' + APP_DATE;

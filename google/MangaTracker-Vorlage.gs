@@ -2188,7 +2188,15 @@ function bildText_(imgUrl) {
   if (r.getResponseCode() !== 200 || !/^image\//i.test(type)) return { text: '', error: 'fetch ' + r.getResponseCode() };
   let blob = r.getBlob().setName('mt-ocr.jpg');
   if (!/jpe?g|png|gif/i.test(type)) {                 // Drive reads JPG/PNG/GIF; Instagram may send WebP/HEIC
-    try { blob = blob.getAs('image/jpeg').setName('mt-ocr.jpg'); } catch (e) { return { text: '', error: 'format ' + type }; }
+    try { blob = blob.getAs('image/jpeg').setName('mt-ocr.jpg'); } catch (e) {
+      // v2.11.3: WebP kann Google hier nicht umwandeln, und Instagram gibt für solche Bilder kein JPEG heraus.
+      // Deshalb holt das Skript das Bild über den kostenlosen, offenen Bilddienst wsrv.nl als JPEG
+      // (der bekommt dabei nur die öffentliche Bildadresse, keine Daten von dir).
+      const w = UrlFetchApp.fetch('https://wsrv.nl/?url=' + encodeURIComponent(u) + '&output=jpg&q=90', { muteHttpExceptions: true, followRedirects: true });
+      const wt = String(w.getHeaders()['Content-Type'] || w.getHeaders()['content-type'] || '');
+      if (w.getResponseCode() !== 200 || !/jpe?g/i.test(wt)) return { text: '', error: 'format ' + type + ' (Umwandlung über wsrv.nl: ' + w.getResponseCode() + ')' };
+      blob = w.getBlob().setName('mt-ocr.jpg');
+    }
   }
   if (blob.getBytes().length > 10 * 1024 * 1024) return { text: '', error: 'size' };
 
@@ -2398,6 +2406,7 @@ function igListe_(text, oftWort) {
     if (/^\d{1,4}\+?$/.test(l)) return /^0\d$/.test(l) ? 'x' : 'num';                                  // „144+“; „02“ ist die laufende Nummer
     if (ST.test(l)) return 'st';
     if (/^[\s•·]*(?:\d{1,4}\+?\s*)?(?:chapters?|chaps?|episodes?|kapitel)\s*$/i.test(l)) return 'ch';
+    if (/\b(?:chapters?|chaps?|episodes?|kapitel)\b/i.test(l) && !/[A-Za-z]{3}/.test(igClean_(l))) return 'ch';       // „275 CHAPTERS | HIATUS“ in einer Zeile
     if (/\d\s*[-–\/]\s*\d|\bof\s+\d+\b/i.test(l) || /@|https?:|www\.|\.com\b|[|]/i.test(l)) return 'x';     // 01/07, PICKS 01-04 OF 28, Adressen
     const w = titelNorm_(l).split(' ').filter(Boolean);
     if (!w.length || !/[A-Za-z]{2}/.test(l) || (w.length === 1 && w[0].length <= 3)) return 'x';
@@ -2424,7 +2433,7 @@ function igListe_(text, oftWort) {
       if (s0 !== e) {
         const w0 = titelNorm_(lines[s0]).split(' ').filter(function (x) { return x.length > 2; });      // „DRAGONSLAYER'S“ → ohne das „s“
         const offenesEnde = /\s(?:of|the|a|an|as|to|in|on|and|with|is|for|from|by)\s*$/i.test(lines[s0]);            // „REINCARNATION OF“ geht in der nächsten Zeile weiter
-        const halbTag = !offenesEnde && (!w0.length || w0.filter(tagWort).length * 2 >= w0.length);
+        const halbTag = !offenesEnde && w0.length > 0 && w0.filter(function (x) { return !!oftWort[x]; }).length * 2 >= w0.length;   // nur Wörter, die in DIESEM Beitrag als Schildchen vorkommen
         const unterTag = w0.length === 1 && art[s0 - 1] === 'w1' && !/:\s*$/.test(lines[s0]);
         if (art[s0] !== 't' || halbTag || unterTag) nurText = false;
       }
@@ -2434,7 +2443,10 @@ function igListe_(text, oftWort) {
     let zahl = '';
     const inl = art[e] === 'ti' ? lines[e].match(/(\d{1,4}\+?)\s*$/) : null;
     if (inl) zahl = inl[1];
-    for (let j = e + 1; !zahl && j <= e + 3 && j < lines.length; j++) { if (art[j] === 'num') zahl = lines[j]; else if (art[j] !== 'st' && art[j] !== 'ch') break; }
+    for (let j = e + 1; !zahl && j <= e + 3 && j < lines.length; j++) {
+      const inCh = art[j] === 'ch' ? lines[j].match(/(\d{1,4}\+?)\s*(?:chapters?|chaps?|episodes?|kapitel)/i) : null;
+      if (art[j] === 'num') zahl = lines[j]; else if (inCh) zahl = inCh[1]; else if (art[j] !== 'st' && art[j] !== 'ch') break;
+    }
     out.push({ vars: vars, std: std || vars[0], zahl: zahl });
   }
   return out;

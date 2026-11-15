@@ -31,7 +31,15 @@ function bildText_(imgUrl) {
   if (r.getResponseCode() !== 200 || !/^image\//i.test(type)) return { text: '', error: 'fetch ' + r.getResponseCode() };
   let blob = r.getBlob().setName('mt-ocr.jpg');
   if (!/jpe?g|png|gif/i.test(type)) {                 // Drive reads JPG/PNG/GIF; Instagram may send WebP/HEIC
-    try { blob = blob.getAs('image/jpeg').setName('mt-ocr.jpg'); } catch (e) { return { text: '', error: 'format ' + type }; }
+    try { blob = blob.getAs('image/jpeg').setName('mt-ocr.jpg'); } catch (e) {
+      // v2.11.3: WebP kann Google hier nicht umwandeln, und Instagram gibt für solche Bilder kein JPEG heraus.
+      // Deshalb holt das Skript das Bild über den kostenlosen, offenen Bilddienst wsrv.nl als JPEG
+      // (der bekommt dabei nur die öffentliche Bildadresse, keine Daten von dir).
+      const w = UrlFetchApp.fetch('https://wsrv.nl/?url=' + encodeURIComponent(u) + '&output=jpg&q=90', { muteHttpExceptions: true, followRedirects: true });
+      const wt = String(w.getHeaders()['Content-Type'] || w.getHeaders()['content-type'] || '');
+      if (w.getResponseCode() !== 200 || !/jpe?g/i.test(wt)) return { text: '', error: 'format ' + type + ' (Umwandlung über wsrv.nl: ' + w.getResponseCode() + ')' };
+      blob = w.getBlob().setName('mt-ocr.jpg');
+    }
   }
   if (blob.getBytes().length > 10 * 1024 * 1024) return { text: '', error: 'size' };
 
