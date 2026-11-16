@@ -47,6 +47,11 @@ function apiErkennenPlus(key, url) {
 function apiSeiteWechseln(key, id, patch) {
   check_(key);
   const url = patch && patch.url;
+  // v2.13: while re-reading, the chapter belongs to the re-read; the first pass stays
+  if (patch && patch.chapter != null && patch.chapter !== '') {
+    const cur = alle_().find(function (x) { return x.id === String(id); });
+    if (cur && cur.rrCh != null) { patch = Object.assign({}, patch, { rrCh: patch.chapter, rrUrl: url || '' }); delete patch.chapter; delete patch.url; }
+  }
   if (url) {
     const lock = LockService.getScriptLock(); lock.waitLock(20000);
     try {

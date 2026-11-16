@@ -14,6 +14,7 @@ A small app to keep track of manga, manhwa and manhua: reading progress, ratings
 - Each user's data lives in **their own Google Sheet**. An Apps Script inside that sheet provides a small web app.
 - The interface (`index.html`) is hosted here on GitHub Pages and is the same for everyone. The first time you open it, you enter your personal setup link; the app link and key are stored only on your own device.
 - iOS Shortcuts log the chapters you read straight from Safari.
+- **Re-read:** read a series a second time with its own progress – the first pass stays until the re-read catches up with it.
 
 ## Files
 

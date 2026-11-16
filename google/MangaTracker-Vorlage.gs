@@ -25,11 +25,13 @@ const SHEET = 'Mangas';
 const HEAD = ['Kategorien', 'Titel', 'Letztes Kapitel', 'Status', 'Zuletzt gelesen', 'Link', 'Bewertung', 'Notiz', 'ID', 'Übersicht', 'Bild', 'Beschreibung', 'Beschreibung DE', 'Bildquelle',
   'Prüfung', 'Geprüft am', 'Erschienen am', 'Erschienenes Kapitel', 'Erscheinungstag', 'Benachrichtigen', 'Zurück aus Hiatus', 'Auto-Hiatus',
   'Neuestes Kapitel', 'Neuestes seit', 'Gesperrt bis', 'Quelle',
-  'AniList-ID', 'AniList-Titel', 'Alternativtitel', 'Offiziell bei', 'AniList-Zuordnung', 'AniList-Link', 'Webtoon-Feed', 'Gelesen um'];
+  'AniList-ID', 'AniList-Titel', 'Alternativtitel', 'Offiziell bei', 'AniList-Zuordnung', 'AniList-Link', 'Webtoon-Feed', 'Gelesen um',
+  'Erneut lesen: Kapitel', 'Erneut lesen: Link', 'Durchgang'];   // v2.13: neue Spalten nur hinten anhängen
 const C = { genres: 1, title: 2, chapter: 3, status: 4, lastRead: 5, url: 6, rating: 7, note: 8, id: 9, overview: 10, image: 11, desc: 12, descDe: 13, imageSrc: 14,
   check: 15, checkedAt: 16, relDate: 17, relCh: 18, relDay: 19, notify: 20, back: 21, autoHiatus: 22, latest: 23, latestSince: 24, lockedCh: 25, source: 26,
-  dbId: 27, dbTitle: 28, alt: 29, official: 30, dbStatus: 31, dbUrl: 32, wtFeed: 33, readAt: 34 };
-const SCHEMA = 9;
+  dbId: 27, dbTitle: 28, alt: 29, official: 30, dbStatus: 31, dbUrl: 32, wtFeed: 33, readAt: 34,
+  rrCh: 35, rrUrl: 36, pass: 37 };
+const SCHEMA = 10;
 const AL = 'https://graphql.anilist.co';
 const HIATUS_DAYS = 21;
 const TZ = 'Europe/Berlin';
@@ -52,6 +54,7 @@ function einrichten() {
   let sh = ss.getSheetByName(SHEET) || ss.getSheets()[0];
   sh.setName(SHEET);
   const last = Math.max(sh.getLastRow(), 2);
+  breiteSichern_(sh);
 
   sh.getRange(1, 1, 1, HEAD.length).setValues([HEAD]).setFontWeight('bold')
     .setBackground('#1f3864').setFontColor('#ffffff');
@@ -121,6 +124,16 @@ function linkEintragen_(url) {
   try {
     const items = alle_();
     const m = besterTreffer_(info, items);
+    if (m && m.rrCh != null) {
+      // v2.13: Erneut lesen läuft – das Kapitel zählt für den zweiten Durchgang, der erste Stand bleibt
+      const patch = { lastRead: heute_() };
+      if (info.ch != null) { patch.rrCh = info.ch; patch.rrUrl = info.url; }
+      if (!m.status) patch.status = 'Lese ich gerade';
+      const now = schreiben_(m.id, patch);
+      if (info.ch == null) return msg_('dateOnly', m.title);
+      if (now.rrCh == null) return msg_('rrDone', m.title, now.chapter);
+      return msg_('rrSaved', m.title, info.ch, m.pass, m.chapter, info.ch < m.rrCh ? m.rrCh : null);
+    }
     if (m) {
       const patch = { lastRead: heute_(), url: info.url };
       if (info.ch != null) patch.chapter = info.ch;
@@ -147,7 +160,40 @@ function apiListe(key) { check_(key); return { items: alle_(), categories: kateg
 function apiSpeichern(key, id, patch) {
   check_(key);
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
-  try { return schreiben_(id, patch); } finally { lock.releaseLock(); }
+  try {
+    patch = Object.assign({}, patch); delete patch.pass;          // v2.13: Durchgang nur über apiErneutLesen / apiErneutLesenEnde
+    return schreiben_(id, patch);
+  } finally { lock.releaseLock(); }
+}
+
+/** v2.13 Erneut lesen starten: zweiter Stand ab Kapitel 0, der erste Stand (Kapitel, Link, Status, Bewertung) bleibt. */
+function apiErneutLesen(key, id) {
+  check_(key);
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    const it = einerLesen_(id);
+    if (it.rrCh != null) throw new Error(msg_('rrActive'));
+    if (!(it.chapter > 0)) throw new Error(msg_('rrNoChapter'));
+    return schreiben_(it.id, { rrCh: 0, rrUrl: '', pass: (it.pass || 1) + 1 });
+  } finally { lock.releaseLock(); }
+}
+
+/** v2.13 Erneut lesen beenden: zweiter Stand weg, Durchgang zurück; der erste Stand bleibt unverändert. */
+function apiErneutLesenEnde(key, id) {
+  check_(key);
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    const it = einerLesen_(id);
+    if (it.rrCh == null) return it;
+    const p = Math.max(1, (it.pass || 1) - 1);
+    return schreiben_(it.id, { rrCh: '', rrUrl: '', pass: p > 1 ? p : '' });
+  } finally { lock.releaseLock(); }
+}
+
+function einerLesen_(id) {
+  const sh = blatt_(); const r = zeile_(sh, String(id));
+  if (!r) throw new Error('Serie nicht gefunden – lade die Liste neu.');
+  return ding_(sh.getRange(r, 1, 1, HEAD.length).getValues()[0]);
 }
 
 function apiAnlegen(key, obj) {
@@ -221,10 +267,12 @@ function blatt_() {
   if (!blatt_.ok) {
     if (Number(eig_().schema || 0) < SCHEMA) {
       const props = PropertiesService.getScriptProperties();
+      breiteSichern_(sh);
       sh.getRange(1, 1, 1, HEAD.length).setValues([HEAD]).setFontWeight('bold').setBackground('#1f3864').setFontColor('#ffffff');
       sh.getRange(2, C.genres, 1000, 1).clearDataValidations();
       sh.setColumnWidth(C.overview, 260); sh.setColumnWidth(C.image, 220); sh.setColumnWidth(C.imageSrc, 220);
       sh.setColumnWidth(C.desc, 360); sh.setColumnWidth(C.descDe, 360);
+      try { sh.setColumnWidth(C.rrUrl, 260); } catch (e) {}
       try { sh.getRange(2, C.notify, 999, 1).insertCheckboxes(); } catch (e) {}
       sh.getRange(2, C.relDate, 999, 1).setNumberFormat('dd.MM.yyyy');
       sh.getRange(2, C.back, 999, 1).setNumberFormat('dd.MM.yyyy');
@@ -248,6 +296,10 @@ function blatt_() {
     blatt_.ok = true;
   }
   return sh;
+}
+/** v2.13: genug Spalten für HEAD (neue Spalten hinten); fehlen welche, werden leere Spalten am Ende angefügt. Daten bleiben unberührt. */
+function breiteSichern_(sh) {
+  try { const m = sh.getMaxColumns(); if (m < HEAD.length) sh.insertColumnsAfter(m, HEAD.length - m); } catch (e) {}
 }
 function heute_() { return Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd'); }
 function wochentag_() { return Number(Utilities.formatDate(new Date(), TZ, 'u')); }   // 1 = Montag … 7 = Sonntag
@@ -347,9 +399,13 @@ function ding_(r) {
     dbStatus: r[C.dbStatus - 1] || null,
     dbUrl: r[C.dbUrl - 1] || null,
     wtFeed: r[C.wtFeed - 1] || null,
-    readAt: Number(r[C.readAt - 1]) || 0
+    readAt: Number(r[C.readAt - 1]) || 0,
+    rrCh: r[C.rrCh - 1] === '' || r[C.rrCh - 1] == null ? null : Number(r[C.rrCh - 1]),
+    rrUrl: r[C.rrUrl - 1] || null,
+    pass: Number(r[C.pass - 1]) || 1
   });
-  it.next = naechstesKapitel_(it);
+  // v2.13: während „Erneut lesen“ führt Weiterlesen zum nächsten Kapitel des zweiten Durchgangs
+  it.next = it.rrCh != null ? kapitelLink_(Object.assign({}, it, { url: it.rrUrl || it.url }), Math.floor(it.rrCh) + 1) : naechstesKapitel_(it);
   return it;
 }
 
@@ -381,6 +437,7 @@ function schreiben_(id, patch, restore) {
   // Schneller: die Zeile einmal lesen, dann alles schreiben, dann die Zeile einmal lesen (statt der ganzen Tabelle)
   const row = sh.getRange(r, 1, 1, HEAD.length).getValues()[0];
   patch = Object.assign({}, patch);
+  if (!restore) rrRegel_(row, patch);
   if (!restore && patch.url && !patch.overview && !row[C.overview - 1]) {
     const old = row[C.url - 1];
     const ov = (old && urlInfo_(old) && urlInfo_(old).ch == null) ? old : (uebersicht_(old) || uebersicht_(patch.url));
@@ -416,6 +473,28 @@ function schreiben_(id, patch, restore) {
   }
   Object.keys(patch).forEach(k => { if (C[k] && k !== 'id') sh.getRange(r, C[k]).setValue(zelle_(k, patch[k])); });
   return ding_(sh.getRange(r, 1, 1, HEAD.length).getValues()[0]);
+}
+
+/** v2.13 Erneut lesen, für jeden Schreibweg (nicht beim Rückgängigmachen):
+ *  - ein zweiter Stand wird nur über apiErneutLesen begonnen (dort steht „pass“ im patch)
+ *  - erreicht der zweite Stand das Kapitel des ersten (oder mehr), endet das erneute Lesen:
+ *    Kapitel = zweiter Stand, Link = Link des zweiten Stands, zweiter Stand leer, Durchgang bleibt.
+ *    Danach laufen die üblichen Folgen eines neuen Kapitels (neuestes Kapitel, Hiatus …) wie bei normalem Speichern. */
+function rrRegel_(row, patch) {
+  const leer = v => v === '' || v == null;
+  const aktiv = !leer(row[C.rrCh - 1]);
+  if (!aktiv && 'rrCh' in patch && !leer(patch.rrCh) && !('pass' in patch)) { delete patch.rrCh; delete patch.rrUrl; }
+  if (!aktiv && !('rrCh' in patch)) return;
+  const rr = 'rrCh' in patch ? patch.rrCh : row[C.rrCh - 1];
+  if (leer(rr)) return;
+  const beide = 'rrCh' in patch && 'chapter' in patch && !leer(patch.chapter);   // z. B. schnell + + in der App: erst eingeholt, dann weiter
+  const ch = 'chapter' in patch ? patch.chapter : row[C.chapter - 1];
+  const alt = row[C.chapter - 1];
+  if (!(leer(ch) || Number(rr) >= Number(ch) || (beide && !leer(alt) && Number(rr) >= Number(alt)))) return;
+  const link = 'rrUrl' in patch ? patch.rrUrl : row[C.rrUrl - 1];
+  if (beide) { if (!patch.url && link) patch.url = link; }
+  else { patch.chapter = Number(rr); if (link) patch.url = link; }
+  patch.rrCh = ''; patch.rrUrl = '';
 }
 
 function anlegen_(o) {
@@ -891,16 +970,25 @@ const MSG = {
     invalid: 'That was not a valid link.',
     dateOnly: t => t + ': date updated. Chapter not recognised – please enter it in the app.',
     saved: (t, ch, low) => t + ': chapter ' + ch + ' saved' + (low != null ? ' (lower than before: ' + low + ')' : '') + '.',
-    created: (t, ch) => 'Added: ' + t + (ch != null ? ', chapter ' + ch : '') + '. Please pick a category in the app.'
+    created: (t, ch) => 'Added: ' + t + (ch != null ? ', chapter ' + ch : '') + '. Please pick a category in the app.',
+    rrSaved: (t, ch, p, first, low) => t + ': ' + ordEn_(p) + ' read – chapter ' + ch + ' saved (first read: ' + first + ')' + (low != null ? ' (lower than before: ' + low + ')' : '') + '.',
+    rrDone: (t, ch) => t + ': chapter ' + ch + ' saved – re-read finished.',
+    rrActive: 'This series is already being re-read.',
+    rrNoChapter: 'Re-read is only possible once a chapter is saved.'
   },
   de: {
     noAccess: 'Kein Zugriff. Öffne die Seite mit deinem persönlichen Link.',
     invalid: 'Das war kein gültiger Link.',
     dateOnly: t => t + ': Datum gesetzt. Kapitel nicht erkannt – bitte in der App eintragen.',
     saved: (t, ch, low) => t + ': Kapitel ' + ch + ' gespeichert' + (low != null ? ' (niedriger als bisher ' + low + ')' : '') + '.',
-    created: (t, ch) => 'Neu angelegt: ' + t + (ch != null ? ', Kapitel ' + ch : '') + '. Kategorie bitte in der App wählen.'
+    created: (t, ch) => 'Neu angelegt: ' + t + (ch != null ? ', Kapitel ' + ch : '') + '. Kategorie bitte in der App wählen.',
+    rrSaved: (t, ch, p, first, low) => t + ': ' + p + '. Durchgang – Kapitel ' + ch + ' gespeichert (erster Durchgang: ' + first + ')' + (low != null ? ' (niedriger als bisher ' + low + ')' : '') + '.',
+    rrDone: (t, ch) => t + ': Kapitel ' + ch + ' gespeichert – erneutes Lesen abgeschlossen.',
+    rrActive: 'Diese Serie wird schon erneut gelesen.',
+    rrNoChapter: 'Erneut lesen geht erst, wenn ein Kapitel gespeichert ist.'
   }
 };
+function ordEn_(n) { n = Number(n) || 2; const s = (n % 100 >= 11 && n % 100 <= 13) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th'); return n + s; }
 function msg_(k) {
   const lang = prefs_().lang === 'de' ? 'de' : 'en';
   const v = MSG[lang][k]; const args = Array.prototype.slice.call(arguments, 1);
@@ -1854,6 +1942,11 @@ function apiErkennenPlus(key, url) {
 function apiSeiteWechseln(key, id, patch) {
   check_(key);
   const url = patch && patch.url;
+  // v2.13: while re-reading, the chapter belongs to the re-read; the first pass stays
+  if (patch && patch.chapter != null && patch.chapter !== '') {
+    const cur = alle_().find(function (x) { return x.id === String(id); });
+    if (cur && cur.rrCh != null) { patch = Object.assign({}, patch, { rrCh: patch.chapter, rrUrl: url || '' }); delete patch.chapter; delete patch.url; }
+  }
   if (url) {
     const lock = LockService.getScriptLock(); lock.waitLock(20000);
     try {
@@ -1904,6 +1997,8 @@ function apiHintergrundEntfernen(key) {
  *  - apiAutoGelesen:    saves a chapter automatically, but only if it is newer than the saved one
  *  - apiRueckgaengig:   undo for the automatic saving (v2.12: also "Neuestes Kapitel", hiatus and release info)
  *  - apiNeueSerie:      adds a series that is not in the list yet (only after you tap "Add")
+ *  v2.13 "Erneut lesen": while a re-read is active, the effective chapter is the re-read chapter (rrCh);
+ *  the first pass (chapter, url) is never overwritten by a lower chapter.
  *  Kept in its own file so Code.gs stays unchanged. */
 
 function apiLesestandHosts(key) {
@@ -1928,11 +2023,14 @@ function apiLesestand(key, url) {
   if (!t) return { found: false };
   const r = t.r, it = t.it;
   if (!it) return { found: false, title: r.title, ch: r.ch };
-  return {
+  const rr = it.rrCh != null;
+  const out = {
     found: true, id: it.id, title: it.title, ch: r.ch,
-    chapter: it.chapter, latest: it.latest, status: it.status,
-    next: it.next, overview: it.overview, sameSite: r.sameSite
+    chapter: rr ? it.rrCh : it.chapter, latest: it.latest, status: it.status,
+    next: it.next, overview: it.overview, sameSite: r.sameSite, rr: rr
   };
+  if (rr) { out.first = it.chapter; out.pass = it.pass; }   // next already points to rrCh + 1 (ding_)
+  return out;
 }
 
 function apiAutoGelesen(key, url) {
@@ -1941,25 +2039,29 @@ function apiAutoGelesen(key, url) {
   if (!t || t.r.ch == null) return { ok: false, reason: 'nochapter' };
   if (!t.it) return { ok: false, reason: 'unknown', title: t.r.title };
   const it = t.it, info = urlInfo_(url), n = t.r.ch;
-  if (it.chapter != null && n <= it.chapter) return { ok: false, reason: 'older', title: it.title, chapter: it.chapter };
+  const rr = it.rrCh != null, eff = rr ? it.rrCh : it.chapter;
+  if (eff != null && n <= eff) return { ok: false, reason: 'older', title: it.title, chapter: eff };
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
     // v2.12: everything this save may change (also "Neuestes Kapitel", hiatus, release info), read from the row itself, for "Undo"
     const prev = lesestandVorher_(it);
-    const patch = { chapter: n, lastRead: heute_(), url: info.url };
+    // v2.13: re-read active → only the re-read progress is saved (schreiben_ ends the re-read once it reaches the first pass)
+    const patch = rr ? { rrCh: n, rrUrl: info.url, lastRead: heute_() } : { chapter: n, lastRead: heute_(), url: info.url };
     if (!it.status) patch.status = 'Lese ich gerade';
-    if (!t.r.sameSite) patch.overview = uebersicht_(info.url) || info.url;   // read on another site: follow it
+    if (!rr && !t.r.sameSite) patch.overview = uebersicht_(info.url) || info.url;   // read on another site: follow it
     const now = schreiben_(it.id, patch);
+    const first = now ? now.chapter : null;
     return {
       ok: true, id: it.id, title: it.title, ch: n, prev: prev,
-      unread: now && now.latest != null ? Math.max(0, Math.floor(now.latest) - Math.floor(n)) : null
+      unread: now && now.latest != null ? Math.max(0, Math.floor(now.latest) - Math.floor(rr ? (first || 0) : n)) : null,
+      rr: !!(now && now.rrCh != null), first: first, pass: now ? now.pass : 1
     };
   } finally { lock.releaseLock(); }
 }
 
 /** Fields an automatic save may change (directly or through schreiben_). readAt is left as it is. */
 const LESESTAND_UNDO = ['chapter', 'lastRead', 'url', 'overview', 'status', 'latest', 'latestSince', 'check', 'lockedCh',
-  'relDate', 'relCh', 'relDay', 'back', 'autoHiatus'];
+  'relDate', 'relCh', 'relDay', 'back', 'autoHiatus', 'rrCh', 'rrUrl', 'pass'];
 
 /** The row as it is now, in the form schreiben_ writes back unchanged (dates as yyyy-MM-dd, empty cells as null). */
 function lesestandVorher_(it) {

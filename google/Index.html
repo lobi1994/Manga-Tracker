@@ -520,9 +520,11 @@ function sendSave(id,patch){
   q.wait=w; q.chain=w.p.catch(()=>{});
   return w.p;
 }
+/* v2.13: re-read reaches the first pass → it ends (same rule as the server, so the card does not jump) */
+function rrLocal(it){return it.rrCh!=null&&(it.chapter==null||it.rrCh>=it.chapter)?{...it,chapter:it.rrCh,url:it.rrUrl||it.url,rrCh:null,rrUrl:null}:it}
 async function save(id,patch){
   const i=items.findIndex(x=>x.id===id); const before=i>=0?{...items[i]}:null;
-  if(i>=0){items[i]={...items[i],...patch};renderAll()}
+  if(i>=0){items[i]=rrLocal({...items[i],...patch});renderAll()}
   saving[id]=(saving[id]||0)+1;
   try{const it=await sendSave(id,patch);saving[id]--;if(!saving[id])put(it);return true}
   catch(e){
@@ -552,8 +554,8 @@ function renderFound(){
   $("mPick").onchange=e=>{matchState.id=e.target.value||null;renderFound()};
   $("mNew").onclick=()=>openEditor(null,{title:info.title,chapter:info.ch,url:info.url,lastRead:today(),status:"Lese ich gerade",genres:[]});
   if(item)$("mSave").onclick=async()=>{
-    const v=$("mCh").value; const ch=v===""?item.chapter:parseFloat(v);
-    const patch={chapter:ch,lastRead:today(),url:info.url}; if(!item.status)patch.status="Lese ich gerade";
+    const v=$("mCh").value; const ch=v===""?(item.rrCh!=null?item.rrCh:item.chapter):parseFloat(v);
+    const patch=item.rrCh!=null?{rrCh:ch,rrUrl:info.url,lastRead:today()}:{chapter:ch,lastRead:today(),url:info.url}; if(!item.status)patch.status="Lese ich gerade";
     if(await save(item.id,patch)){toast(t("chSaved",item.title,fmtCh(ch)));matchState=null;$("pasteIn").value="";renderFound()}
   };
 }
@@ -594,7 +596,9 @@ window.imgErr=function(el){
 
 /* ---------- next chapter ---------- */
 function nextState(i){
-  if(i.chapter==null||i.source==="webtoon")return null; const n=Math.floor(i.chapter)+1;
+  if(i.chapter==null)return null;
+  if(i.rrCh!=null)return "free";   // v2.13: the next re-read chapter exists (it is not above the first pass)
+  if(i.source==="webtoon")return null; const n=Math.floor(i.chapter)+1;
   if(i.latest!=null&&n<=i.latest)return "free";
   if(i.lockedCh&&n<=i.lockedCh)return "locked";
   return i.check&&i.check.ch===n?i.check.st:null;
@@ -603,7 +607,7 @@ const unread=i=>(i.source!=="webtoon"&&i.latest!=null&&i.chapter!=null)?Math.max
 function readLinks(i){
   const ov=i.overview?`<a href="${escUrl(i.overview)}" target="_blank" rel="noopener">${t("overview")}</a>`:"";
   if(!i.next)return ov||(i.url?`<a href="${escUrl(i.url)}" target="_blank" rel="noopener">${t("read")}</a>`:"");
-  const n=Math.floor(i.chapter)+1, a=nextState(i);
+  const n=Math.floor(i.rrCh!=null?i.rrCh:i.chapter)+1, a=nextState(i);
   if(a==="no")return `<span>${t("notYet",n)}</span>${ov}`;
   if(a==="locked")return `<a href="${escUrl(i.next)}" target="_blank" rel="noopener">${t("locked",n)} ↗</a>${ov}`;
   return `<a href="${escUrl(i.next)}" target="_blank" rel="noopener"><b>${t("next",n)}${a==="free"?" ✓":""}</b> ↗</a>${ov}`;
@@ -761,7 +765,14 @@ $("shelf").addEventListener("click",e=>{
   const it=e.target.closest(".item"); if(!it)return; const item=items.find(i=>i.id===it.dataset.id); if(!item)return;
   if(e.target.closest("[data-edit]"))return openEditor(item);
   const b=e.target.closest("button[data-d]"); if(!b)return;
-  const d=+b.dataset.d; const ch=Math.max(0,(item.chapter||0)+d);
+  const d=+b.dataset.d;
+  if(item.rrCh!=null){   // v2.13: while re-reading, −/+ change the re-read chapter
+    const r=Math.max(0,item.rrCh+d);
+    save(item.id,d>0?{rrCh:r,lastRead:today()}:{rrCh:r});
+    if(item.chapter==null||r>=item.chapter)toast(t("rrDone"));
+    return;
+  }
+  const ch=Math.max(0,(item.chapter||0)+d);
   save(item.id,d>0?{chapter:ch,lastRead:today()}:{chapter:ch});
 });
 $("shelf").addEventListener("change",e=>{
@@ -1318,7 +1329,7 @@ applyPage(); applyLang(); reload(false);
   I18N.de.waitNext = function (n, d) { return 'Noch kein neues Kapitel \u00b7 Kap. ' + n + ' erwartet am ' + d; };
   function ymd(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
   function waitInfo(i) {
-    if (!i.relDay || i.chapter == null || !i.lastRead) return null;
+    if (!i.relDay || i.chapter == null || !i.lastRead || i.rrCh != null) return null;
     if (i.status === 'Beendet' || i.status === 'Abgebrochen') return null;
     var st = i.source === 'webtoon' ? null : nextState(i);
     if (st === 'free' || st === 'locked' || unread(i) > 0) return null;
@@ -1391,7 +1402,7 @@ applyPage(); applyLang(); reload(false);
 <script>
 /* App version shown at the bottom of every page; raise it with every update and note it in the change log */
 (function(){
-  var APP_VERSION = 'v2.12.0', APP_DATE = '16.11.2026';
+  var APP_VERSION = 'v2.13.0', APP_DATE = '16.11.2026';
   var f = document.createElement('div');
   f.id = 'appVersion';
   f.textContent = 'Manga Tracker ' + APP_VERSION + ' \u00b7 ' + APP_DATE;
@@ -1819,7 +1830,7 @@ applyPage(); applyLang(); reload(false);
     var info = s.info, item = items.find(function (i) { return i.id === s.id; }) || null;
     var html = '';
     if (item && s.same) {
-      html = '<div class="big"><b>' + esc(item.title) + '</b> \u00b7 ' + t('chapter') + ' <input id="aCh" type="number" step="0.5" value="' + (info.ch != null ? info.ch : '') + '" style="width:6.5em"> <span class="note">' + t('was', fmtCh(item.chapter)) + '</span></div>'
+      html = '<div class="big"><b>' + esc(item.title) + '</b> \u00b7 ' + t('chapter') + ' <input id="aCh" type="number" step="0.5" value="' + (info.ch != null ? info.ch : '') + '" style="width:6.5em"> <span class="note">' + t('was', fmtCh(item.rrCh != null ? item.rrCh : item.chapter)) + '</span></div>'
         + '<div class="row"><button type="button" class="primary" id="aSave">' + esc(tx('saveRead')) + '</button>'
         + '<label class="note">' + esc(tx('wrongSeries')) + ' <select id="aPick">' + pickOptions(item.id) + '</select></label>'
         + '<button type="button" class="ghost" id="aNew">' + esc(tx('asNew')) + '</button></div>';
@@ -1846,8 +1857,8 @@ applyPage(); applyLang(); reload(false);
       renderAdd();
     };
     var sv = $('aSave'); if (sv) sv.onclick = async function () {
-      var v = $('aCh').value, ch = v === '' ? item.chapter : parseFloat(v);
-      var patch = { chapter: ch, lastRead: today(), url: info.url }; if (!item.status) patch.status = 'Lese ich gerade';
+      var rr = item.rrCh != null, v = $('aCh').value, ch = v === '' ? (rr ? item.rrCh : item.chapter) : parseFloat(v);
+      var patch = rr ? { rrCh: ch, rrUrl: info.url, lastRead: today() } : { chapter: ch, lastRead: today(), url: info.url }; if (!item.status) patch.status = 'Lese ich gerade';
       if (await save(item.id, patch)) { toast(t('chSaved', item.title, fmtCh(ch))); closeAdd(); }
     };
     var sw = $('aSwitch'); if (sw) sw.onclick = async function () {
@@ -1910,7 +1921,7 @@ applyPage(); applyLang(); reload(false);
   var shortDay = function (d) { return d.toLocaleDateString(prefs.lang === 'de' ? 'de-DE' : 'en-US', { weekday: 'short' }).replace('.', ''); };
   function nextButton(i) {
     if (!i.url || !i.next || i.chapter == null) return '';
-    var n = Math.floor(i.chapter) + 1;
+    var n = Math.floor(i.rrCh != null ? i.rrCh : i.chapter) + 1;   // v2.13: re-read → next re-read chapter
     var w = window.waitInfo ? window.waitInfo(i) : null;
     if (w) return '<span class="go off">' + esc(tx('comes', w.n, shortDay(w.date))) + '</span>';
     var a = nextState(i);
@@ -1919,8 +1930,9 @@ applyPage(); applyLang(); reload(false);
     return '<a class="go" href="' + escUrl(i.next) + '" target="_blank" rel="noopener">' + esc(tx('nextBtn', n)) + (a === 'free' ? ' \u2713' : '') + ' \u2192</a>';
   }
   row = function (i) {
-    var st = i.status || '', g = i.genres || [], done = st === 'Beendet', u = unread(i);
+    var st = i.status || '', g = i.genres || [], done = st === 'Beendet', u = unread(i), rr = i.rrCh != null;
     var flags = [];
+    if (rr) flags.push('<span class="fl rr">\u21ba ' + esc(t('rrCard', i.pass || 2, fmtCh(i.rrCh), fmtCh(i.chapter))) + '</span>');
     if (!done && i.back) flags.push('<span class="fl warm">\ud83d\udd25 ' + esc(t('back')) + '</span>');
     if (!done && i.relDate === today()) flags.push('<span class="fl new">' + esc(t('newToday')) + '</span>');
     if (window.siteGone && window.siteGone(i)) flags.push('<span class="gonepill">' + esc(t('gonePill')) + '</span>');
@@ -1946,7 +1958,7 @@ applyPage(); applyLang(); reload(false);
       + (flags.length ? '<div class="flags">' + flags.join('') + '</div>' : '')
       + (line.length ? '<div class="line">' + line.join(' \u00b7 ') + '</div>' : '')
       + '</div>'
-      + '<div class="row2"><div class="ch"><button data-d="-1" aria-label="' + esc(t('chBack')) + '">\u2212</button><span class="num' + (i.chapter == null ? ' empty' : '') + '">' + fmtCh(i.chapter) + '</span><button data-d="1" aria-label="' + esc(t('chFwd')) + '">+</button></div>'
+      + '<div class="row2"><div class="ch"><button data-d="-1" aria-label="' + esc(t('chBack')) + '">\u2212</button><span class="num' + (rr ? ' rrnum' : i.chapter == null ? ' empty' : '') + '">' + fmtCh(rr ? i.rrCh : i.chapter) + '</span><button data-d="1" aria-label="' + esc(t('chFwd')) + '">+</button></div>'
       + nextButton(i) + ov + '</div>'
       + '</div>';
   };
@@ -2393,6 +2405,93 @@ applyPage(); applyLang(); reload(false);
   });
   var baseLang = applyLang;
   applyLang = function () { baseLang.apply(this, arguments); render(); };
+})();
+</script>
+<script>
+/* v2.13: "Erneut lesen" (re-read) – a second pass with its own progress (rrCh); the first pass (chapter) stays
+ * until the re-read catches up with it. Detail view: start / stop; card: label, −/+ change the re-read chapter;
+ * status chip "Re-reading". Unread, sorting and tier list keep using the first-pass chapter. */
+(function(){
+  function ordEn(n) { n = Number(n) || 2; var s = (n % 100 >= 11 && n % 100 <= 13) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th'); return n + s; }
+  I18N.en.rrCard = function (p, a, b) { return ordEn(p) + ' read \u00b7 ' + a + ' / ' + b; };
+  I18N.de.rrCard = function (p, a, b) { return p + '. Durchgang \u00b7 ' + a + ' / ' + b; };
+  I18N.en.rrLine = function (p, a, b) { return ordEn(p) + ' read: ch. ' + a + ' / ' + b; };
+  I18N.de.rrLine = function (p, a, b) { return p + '. Durchgang: Kap. ' + a + ' / ' + b; };
+  I18N.en.rrStart = 'Re-read'; I18N.de.rrStart = 'Erneut lesen';
+  I18N.en.rrStop = 'Stop re-read'; I18N.de.rrStop = 'Erneut lesen beenden';
+  I18N.en.rrStopQ = 'Stop the re-read? Your first read (chapter %s) stays as it is.';
+  I18N.de.rrStopQ = 'Erneut lesen beenden? Dein erster Durchgang (Kapitel %s) bleibt, wie er ist.';
+  I18N.en.rrHint = 'Starts a new pass at chapter 0. Your first read stays saved until the re-read catches up with it.';
+  I18N.de.rrHint = 'Beginnt einen neuen Durchgang bei Kapitel 0. Dein erster Stand bleibt gespeichert, bis der neue ihn einholt.';
+  I18N.en.rrTimes = function (n) { return 'Read ' + n + '\u00d7'; }; I18N.de.rrTimes = function (n) { return n + '\u00d7 gelesen'; };
+  I18N.en.rrStat = 'Re-reading'; I18N.de.rrStat = 'Erneut lesen';
+  I18N.en.rrDone = 'Re-read finished \u2013 back to normal progress'; I18N.de.rrDone = 'Erneut lesen abgeschlossen \u2013 es geht normal weiter';
+  I18N.en.rrStarted = 'Re-read started'; I18N.de.rrStarted = 'Erneut lesen gestartet';
+  function on(i) { return i.rrCh != null; }
+  window.rrOn = on;
+  SFLAG.__rr = on;
+
+  var baseStats = renderStats;
+  renderStats = function () {
+    baseStats();
+    var n = items.filter(inGenre).filter(on).length;
+    if (!n && !sInc.has('__rr') && !sExc.has('__rr')) return;
+    var st = fState(sInc, sExc, '__rr'), label = t('rrStat');
+    var tmp = document.createElement('div');
+    tmp.innerHTML = '<button ' + chipAttrs(st, label) + '></button>';
+    var b = tmp.firstChild;
+    b.className = 'stat rrstat' + (st === 'exc' ? ' exc' : '');
+    b.setAttribute('data-s', '__rr');
+    b.innerHTML = (st === 'exc' ? '\u2715 ' : '') + '\u21ba ' + esc(label) + ' <b>' + n + '</b>';
+    var box = $('stats'); box.insertBefore(b, box.firstChild);
+  };
+
+  function setLocal(id, f) { var k = items.findIndex(function (x) { return x.id === id; }); if (k < 0) return null; var old = items[k]; items[k] = Object.assign({}, old, f); renderAll(); return old; }
+  function undoLocal(old) { if (!old) return; var k = items.findIndex(function (x) { return x.id === old.id; }); if (k >= 0) { items[k] = old; renderAll(); } }
+  function block(i) {
+    var box = document.getElementById('rrBox');
+    if (!box) { box = document.createElement('div'); box.id = 'rrBox'; }
+    $('detailBody').appendChild(box);
+    if (on(i)) {
+      box.innerHTML = '<div class="rrbox"><div><b>\u21ba ' + esc(t('rrLine', i.pass || 2, fmtCh(i.rrCh), fmtCh(i.chapter))) + '</b></div>'
+        + '<div class="row"><button type="button" id="rrStop">' + esc(t('rrStop')) + '</button></div></div>';
+      $('rrStop').onclick = function () {
+        if (!confirm(t('rrStopQ').replace('%s', fmtCh(i.chapter)))) return;
+        var p = Math.max(1, (i.pass || 2) - 1);
+        var old = setLocal(i.id, { rrCh: null, rrUrl: null, pass: p });
+        if (detailId === i.id) openDetail(i.id);
+        run('apiErneutLesenEnde', i.id).then(function (it) { put(it); if (detailId === i.id && $('detail').open) openDetail(i.id); })
+          .catch(function (e) { undoLocal(old); if (detailId === i.id && $('detail').open) openDetail(i.id); err(e); });
+      };
+    } else if (i.chapter != null && i.chapter > 0) {
+      box.innerHTML = '<div class="row" style="margin-top:10px;align-items:center">'
+        + ((i.pass || 1) >= 2 ? '<span class="note rrtimes">' + esc(t('rrTimes', i.pass)) + '</span>' : '')
+        + '<button type="button" id="rrStart" title="' + esc(t('rrHint')) + '">\u21ba ' + esc(t('rrStart')) + '</button></div>';
+      $('rrStart').onclick = function () {
+        var old = setLocal(i.id, { rrCh: 0, rrUrl: null, pass: (i.pass || 1) + 1 });
+        if (detailId === i.id) openDetail(i.id);
+        toast(t('rrStarted'));
+        run('apiErneutLesen', i.id).then(function (it) { put(it); if (detailId === i.id && $('detail').open) openDetail(i.id); })
+          .catch(function (e) { undoLocal(old); if (detailId === i.id && $('detail').open) openDetail(i.id); err(e); });
+      };
+    } else box.innerHTML = (i.pass || 1) >= 2 ? '<div class="note rrtimes">' + esc(t('rrTimes', i.pass)) + '</div>' : '';
+  }
+  var baseOpen = openDetail;
+  openDetail = function (id) {
+    baseOpen(id);
+    var i = items.find(function (x) { return x.id === id; });
+    if (i) block(i);
+  };
+  var css = document.createElement('style');
+  css.textContent = '.mt2 .fl.rr{background:#e4ecff;color:#2f4fa8;border:1px solid #9fb3ea}'
+    + '.mt2 .num.rrnum{color:#2f4fa8}'
+    + '.stat.rrstat{border-color:#5b78c9;color:#3f5fb5}'
+    + '.rrbox{margin-top:12px;padding:10px 12px;border:1px solid #5b78c9;border-radius:10px;display:flex;flex-direction:column;gap:8px}'
+    + '.rrtimes{font-weight:600}'
+    + 'html[data-mode="dark"] .mt2 .fl.rr{background:#1e2a4a;color:#a9bdf5;border-color:#3d5390}html[data-mode="dark"] .mt2 .num.rrnum{color:#a9bdf5}'
+    + '@media (prefers-color-scheme: dark){html[data-mode="auto"] .mt2 .fl.rr{background:#1e2a4a;color:#a9bdf5;border-color:#3d5390}html[data-mode="auto"] .mt2 .num.rrnum{color:#a9bdf5}}';
+  document.head.appendChild(css);
+  try { renderAll(); } catch (e) {}
 })();
 </script>
 <script>

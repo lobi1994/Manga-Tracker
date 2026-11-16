@@ -14,6 +14,7 @@ Eine kleine App, um Manga, Manhwa und Manhua zu verfolgen: Lesestand, Bewertunge
 - Die Daten liegen in einer **eigenen Google-Tabelle** jedes Nutzers. Ein Apps-Script in dieser Tabelle stellt eine kleine Web-App bereit.
 - Die Oberfläche (`index.html`) liegt hier auf GitHub Pages und ist für alle gleich. Beim ersten Öffnen gibt man seinen persönlichen Einrichtungs-Link ein; App-Link und Schlüssel werden nur auf dem eigenen Gerät gespeichert.
 - iOS-Kurzbefehle tragen gelesene Kapitel direkt aus Safari ein.
+- **Erneut lesen:** eine Serie ein zweites Mal lesen, mit eigenem Stand – der erste Stand bleibt, bis der neue ihn einholt.
 
 ## Dateien
 

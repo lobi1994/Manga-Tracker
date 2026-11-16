@@ -94,7 +94,7 @@ Benutzen: Übersichtsseite einer Serie in Safari öffnen (bei manchen Seiten vor
 Damit musst du nicht mehr auf „Manga gelesen“ tippen:
 
 - **Auf der Kapitelübersicht** einer Serie siehst du unten „gelesen bis X“, dein Kapitel ist markiert, und ein Knopf bringt dich zum nächsten Kapitel.
-- **Auf einer Kapitelseite** wird das Kapitel automatisch gespeichert, sobald du wirklich am Ende bist: alle Bilder sind geladen, das letzte Bild war ganz zu sehen, du hast mindestens 70 % der Bilder durchgescrollt, bist 2 Sekunden am Ende geblieben und mindestens 15 Sekunden auf der Seite (Textseiten: 97 % gescrollt). Oder sofort, wenn du auf „Nächstes Kapitel“ tippst. Danach erscheint 15 Sekunden lang eine Meldung mit **Rückgängig** (stellt auch „Neuestes Kapitel“ wieder her). Ab Overlay-Version 1.14.0.
+- **Auf einer Kapitelseite** wird das Kapitel automatisch gespeichert, sobald du wirklich am Ende bist: alle Bilder sind geladen, das letzte Bild war ganz zu sehen, du hast mindestens 70 % der Bilder durchgescrollt, bist 2 Sekunden am Ende geblieben und mindestens 15 Sekunden auf der Seite (Textseiten: 97 % gescrollt). Oder sofort, wenn du auf „Nächstes Kapitel“ tippst. Danach erscheint 15 Sekunden lang eine Meldung mit **Rückgängig** (stellt auch „Neuestes Kapitel“ wieder her). Ab Overlay-Version 1.14.0. Beim erneuten Lesen (6d) zeigt und speichert das Overlay den neuen Durchgang (ab 1.15.0).
 - **Ältere oder schon gelesene Kapitel** ändern nichts.
 - **Serien, die noch nicht in deiner Liste sind**, werden nur angelegt, wenn du auf **Hinzufügen** tippst.
 - Das Overlay läuft nur auf Leseseiten, die schon in deiner Liste vorkommen. Eine neue Seite kommt dazu, sobald du dort einmal „Manga gelesen“ benutzt.
@@ -145,6 +145,16 @@ Danach liest das Overlay das gerade sichtbare Bild (bei Bilderserien beim Wische
 
 Kapitelzahlen kommen von MangaUpdates (sonst AniList). Steht der Titel nur im Ton eines Videos, findet das Overlay ihn nicht – dann einfach eintippen.
 
+## 6d. Erneut lesen (ab v2.13)
+
+Du willst eine Serie ein zweites Mal von vorn lesen, ohne deinen bisherigen Stand zu verlieren:
+
+- **Starten:** Serie antippen (Detailansicht) → **Erneut lesen**. Der neue Durchgang beginnt bei Kapitel 0. Status, Bewertung und dein bisheriges Kapitel bleiben, wie sie sind.
+- **Auf der Karte** steht dann z. B. „2. Durchgang · 37 / 250“. Die Zahl zwischen − und + ist jetzt das Kapitel des neuen Durchgangs, **Weiterlesen** öffnet das nächste Kapitel davon. Overlay und Kurzbefehl „Manga gelesen“ speichern ebenfalls in den neuen Durchgang. Der Filter **Erneut lesen** zeigt alle Serien, die du gerade erneut liest.
+- **Automatisches Ende:** Sobald der neue Durchgang dein altes Kapitel erreicht (oder überholt), endet das erneute Lesen von selbst. Ab dann geht es ganz normal mit einem Stand weiter; in der Detailansicht steht z. B. „2× gelesen“.
+- **Abbrechen:** In der Detailansicht **Erneut lesen beenden** – der neue Durchgang wird verworfen, dein alter Stand bleibt.
+- Dein erster Stand wird bis dahin **nie überschrieben**. „Ungelesen“, Sortierung und Tier List richten sich weiter nach ihm.
+
 ## 7. Updates
 
 Die App-Oberfläche aktualisiert sich von selbst. Wenn es eine neue Version des Skripts gibt (siehe Versionsnummer unten in der App und die [Änderungen auf GitHub](https://github.com/lobi1994/Manga-Tracker/commits/main)):
@@ -153,6 +163,8 @@ Die App-Oberfläche aktualisiert sich von selbst. Wenn es eine neue Version des 
 2. **Bereitstellen → Bereitstellungen verwalten → Stift (Bearbeiten) → Version: Neue Version → Bereitstellen.**
 
 Der App-Link und der Schlüssel bleiben dabei gleich – App und Kurzbefehle musst du nicht ändern.
+
+Neue Spalten legt das Skript beim ersten Aufruf selbst an (ab v2.13 z. B. „Erneut lesen: Kapitel“, „Erneut lesen: Link“ und „Durchgang“ ganz hinten in der Tabelle) – deine Daten bleiben unverändert.
 
 ## Probleme?
 

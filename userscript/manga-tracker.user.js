@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Manga Tracker – Lesestand
 // @namespace    https://github.com/lobi1994/Manga-Tracker
-// @version      1.14.0
+// @version      1.15.0
 // @description  Zeigt auf der Kapitelübersicht, wo du aufgehört hast, speichert gelesene Kapitel automatisch und hilft, Manga-Ideen von Instagram in deinen Manga Tracker zu übernehmen.
 // @author       lobi1994
 // @match        *://*/*
@@ -25,6 +25,8 @@
  *    the next chapter. A message with "Undo" appears for 15 seconds.
  *  - Chapter page, older or same chapter: nothing is changed.
  *  - Series not in your list: asks once whether to add it.
+ *  - Re-read ("Erneut lesen", 1.15.0): while you read a series a second time, everything above uses the
+ *    re-read chapter; your first pass stays saved until the re-read catches up with it.
  *
  * On instagram.com (Safari, logged in): shows your saved manga ideas (shortcut "Manga merken"),
  * suggests titles from the caption and picture texts, shows the chapter count and adds a series with one tap.
@@ -38,6 +40,9 @@
   const ACCENT = '#e0457b';
   const de = /^de\b/i.test(navigator.language || '');
   const T = (en, deTxt) => (de ? deTxt : en);
+  /** 1.15.0: "2nd read: " / "2. Durchgang: " while a re-read is active (o.rr from the server), otherwise '' */
+  const ordEn = (n) => { n = Number(n) || 2; return n + ((n % 100 >= 11 && n % 100 <= 13) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th')); };
+  const rrTag = (o) => (o && o.rr ? T(ordEn(o.pass) + ' read: ', (Number(o.pass) || 2) + '. Durchgang: ') : '');
   const host = location.hostname.toLowerCase().replace(/^www\./, '');
   let box = null, undoUntil = 0;
 
@@ -203,8 +208,9 @@
   /* ---------------------------------------------- undo after navigation */
   function offerUndo(res) {
     undoUntil = Date.now() + UNDO_MS;
-    const left = res.unread ? T(' · ' + res.unread + ' unread', ' · ' + res.unread + ' offen') : '';
-    pill('✓ <b>' + esc(res.title) + '</b>: ' + T('chapter ', 'Kapitel ') + esc(res.ch) + T(' saved', ' gespeichert') + left,
+    const left = res.unread && !res.rr ? T(' · ' + res.unread + ' unread', ' · ' + res.unread + ' offen') : '';
+    const fin = res.rr === false && res.prev && res.prev.rrCh != null ? T(' · re-read finished', ' · erneutes Lesen abgeschlossen') : '';
+    pill('✓ <b>' + esc(res.title) + '</b>: ' + rrTag(res) + T('chapter ', 'Kapitel ') + esc(res.ch) + T(' saved', ' gespeichert') + fin + left,
       [{ label: T('Undo', 'Rückgängig'), style: 's', onClick: () => {
         call('apiRueckgaengig', [res.id, res.prev]).then(
           () => pill(T('Undone.', 'Rückgängig gemacht.'), [], 3000),
@@ -264,12 +270,12 @@
       a.style.background = col + '22';
       cleanup.push(() => a.setAttribute('style', old));
     });
-    const neu = st.latest != null && st.latest > saved ? T(' · ' + (Math.floor(st.latest) - saved) + ' new', ' · ' + (Math.floor(st.latest) - saved) + ' neu') : '';
+    const neu = !st.rr && st.latest != null && st.latest > saved ? T(' · ' + (Math.floor(st.latest) - saved) + ' new', ' · ' + (Math.floor(st.latest) - saved) + ' neu') : '';
     const btns = [];
     const nextHref = next ? next.href : st.next;
     if (nextHref) btns.push({ label: T('Continue: ', 'Weiter: ') + (saved + 1) + ' ›', onClick: () => { location.href = nextHref; } });
     if (cur) btns.push({ label: T('Show', 'Zeigen'), style: 's', onClick: () => cur.scrollIntoView({ behavior: 'smooth', block: 'center' }) });
-    softPill('<b>' + esc(st.title) + '</b> · ' + T('read up to ', 'gelesen bis ') + esc(st.chapter) + neu, btns, 0);
+    softPill('<b>' + esc(st.title) + '</b> · ' + rrTag(st) + T('read up to ', 'gelesen bis ') + esc(st.chapter) + (st.rr ? ' / ' + esc(st.first) : '') + neu, btns, 0);
   }
 
   /* ---------------- chapter page: save automatically at the end */
@@ -288,14 +294,15 @@
       ], 0);
       return;
     }
+    // st.chapter is the effective chapter: during a re-read the re-read chapter (server 2.13.0)
     if (st.chapter != null && ch <= st.chapter) {
-      softPill('<b>' + esc(st.title) + '</b> · ' + T('read up to ', 'gelesen bis ') + esc(st.chapter), [], 2500);
+      softPill('<b>' + esc(st.title) + '</b> · ' + rrTag(st) + T('read up to ', 'gelesen bis ') + esc(st.chapter) + (st.rr ? ' / ' + esc(st.first) : ''), [], 2500);
       return;
     }
 
     const start = Date.now();
     let done = false;
-    if (Date.now() >= undoUntil) pill('<b>' + esc(st.title) + '</b> · ' + T('chapter ', 'Kapitel ') + esc(ch) + T(' is saved when you reach the end', ' wird am Ende gespeichert'), [], 3000);
+    if (Date.now() >= undoUntil) pill('<b>' + esc(st.title) + '</b> · ' + rrTag(st) + T('chapter ', 'Kapitel ') + esc(ch) + T(' is saved when you reach the end', ' wird am Ende gespeichert'), [], 3000);
 
     const save = () => {
       if (done || my !== gen) return Promise.resolve(null);
