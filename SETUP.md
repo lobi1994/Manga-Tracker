@@ -96,7 +96,7 @@ How to use: open a series' overview page in Safari (on some sites, tap the tab w
 With this you no longer need to tap "Manga gelesen":
 
 - **On a series' chapter overview** you see "read up to X" at the bottom, your chapter is highlighted, and a button takes you to the next chapter.
-- **On a chapter page** the chapter is saved automatically once you reach the end (at least 15 seconds on the page) or tap "next chapter". A message with **Undo** appears.
+- **On a chapter page** the chapter is saved automatically once you are really at the end: all pictures loaded, the last picture fully seen, at least 70 % of the pictures scrolled through, 2 seconds at the end and at least 15 seconds on the page (text pages: 97 % scrolled). Or right away when you tap "next chapter". A message with **Undo** appears for 15 seconds (it also restores the latest chapter). Overlay version 1.14.0 or newer.
 - **Older or already read chapters** change nothing.
 - **Series that are not in your list yet** are only added if you tap **Add**.
 - The overlay only runs on reading sites that already appear in your list. A new site is added once you use "Manga gelesen" there.

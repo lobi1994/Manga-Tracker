@@ -94,7 +94,7 @@ Benutzen: Übersichtsseite einer Serie in Safari öffnen (bei manchen Seiten vor
 Damit musst du nicht mehr auf „Manga gelesen“ tippen:
 
 - **Auf der Kapitelübersicht** einer Serie siehst du unten „gelesen bis X“, dein Kapitel ist markiert, und ein Knopf bringt dich zum nächsten Kapitel.
-- **Auf einer Kapitelseite** wird das Kapitel automatisch gespeichert, sobald du am Ende bist (mindestens 15 Sekunden auf der Seite) oder auf „Nächstes Kapitel“ tippst. Danach erscheint eine Meldung mit **Rückgängig**.
+- **Auf einer Kapitelseite** wird das Kapitel automatisch gespeichert, sobald du wirklich am Ende bist: alle Bilder sind geladen, das letzte Bild war ganz zu sehen, du hast mindestens 70 % der Bilder durchgescrollt, bist 2 Sekunden am Ende geblieben und mindestens 15 Sekunden auf der Seite (Textseiten: 97 % gescrollt). Oder sofort, wenn du auf „Nächstes Kapitel“ tippst. Danach erscheint 15 Sekunden lang eine Meldung mit **Rückgängig** (stellt auch „Neuestes Kapitel“ wieder her). Ab Overlay-Version 1.14.0.
 - **Ältere oder schon gelesene Kapitel** ändern nichts.
 - **Serien, die noch nicht in deiner Liste sind**, werden nur angelegt, wenn du auf **Hinzufügen** tippst.
 - Das Overlay läuft nur auf Leseseiten, die schon in deiner Liste vorkommen. Eine neue Seite kommt dazu, sobald du dort einmal „Manga gelesen“ benutzt.

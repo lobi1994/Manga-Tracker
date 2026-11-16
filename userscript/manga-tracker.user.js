@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Manga Tracker – Lesestand
 // @namespace    https://github.com/lobi1994/Manga-Tracker
-// @version      1.13.0
+// @version      1.14.0
 // @description  Zeigt auf der Kapitelübersicht, wo du aufgehört hast, speichert gelesene Kapitel automatisch und hilft, Manga-Ideen von Instagram in deinen Manga Tracker zu übernehmen.
 // @author       lobi1994
 // @match        *://*/*
@@ -20,8 +20,9 @@
  *
  * What it does, only on reading sites that are already in your list:
  *  - Chapter overview of a series: shows "read up to X", marks that chapter and offers "Continue".
- *  - Chapter page, newer than your saved chapter: saves it automatically once you reach the end
- *    of the chapter (or tap the next chapter). A message with "Undo" appears.
+ *  - Chapter page, newer than your saved chapter: saves it automatically once you are really at the end
+ *    of the chapter (all pictures loaded, last picture seen, most pictures scrolled through), or when you tap
+ *    the next chapter. A message with "Undo" appears for 15 seconds.
  *  - Chapter page, older or same chapter: nothing is changed.
  *  - Series not in your list: asks once whether to add it.
  *
@@ -32,6 +33,7 @@
   'use strict';
 
   const MIN_READ_MS = 15000;          // at least 15 s on a chapter before scrolling to the end counts as read
+  const UNDO_MS = 15000;              // how long the message with "Undo" stays after saving
   const HOSTS_TTL = 6 * 3600 * 1000;  // refresh the list of reading sites every 6 hours
   const ACCENT = '#e0457b';
   const de = /^de\b/i.test(navigator.language || '');
@@ -200,14 +202,14 @@
 
   /* ---------------------------------------------- undo after navigation */
   function offerUndo(res) {
-    undoUntil = Date.now() + 8000;
+    undoUntil = Date.now() + UNDO_MS;
     const left = res.unread ? T(' · ' + res.unread + ' unread', ' · ' + res.unread + ' offen') : '';
     pill('✓ <b>' + esc(res.title) + '</b>: ' + T('chapter ', 'Kapitel ') + esc(res.ch) + T(' saved', ' gespeichert') + left,
       [{ label: T('Undo', 'Rückgängig'), style: 's', onClick: () => {
         call('apiRueckgaengig', [res.id, res.prev]).then(
           () => pill(T('Undone.', 'Rückgängig gemacht.'), [], 3000),
           () => pill(T('Undo failed – please fix it in the app.', 'Rückgängig ging nicht – bitte in der App korrigieren.'), [], 5000));
-      } }], 8000);
+      } }], UNDO_MS);
   }
   const pending = await GM.getValue('pending', null);
   if (pending) {
@@ -309,20 +311,114 @@
       });
     };
 
-    // End of the chapter: bottom of the last large picture is on screen (or 90 % of the page for text)
-    const atEnd = () => {
-      const imgs = Array.prototype.filter.call(document.images, (i) => i.getBoundingClientRect().width > innerWidth * 0.5 && i.getBoundingClientRect().height > 200);
-      if (imgs.length >= 3) return imgs[imgs.length - 1].getBoundingClientRect().bottom <= innerHeight * 1.15;
+    // End of the chapter (1.14.0): rather save too late than too early. Saved only when, for 2 s in a row,
+    //  - the page has settled: height and number of chapter pictures unchanged for 3 s, no chapter picture still loading,
+    //  - the bottom of the last chapter picture is on screen (or above it),
+    //  - at least 70 % of the chapter pictures were on screen at some point,
+    //  - and you have been on the page for at least 15 s.
+    // Chapter pictures = the longest run of large pictures, one below the other (comments, ads, tips below are left out).
+    // Pages with fewer than 3 such pictures (text, canvas): 97 % of the page scrolled.
+    const SETTLE_MS = 3000, DWELL_MS = 2000, TICK_MS = 500, SEEN_SHARE = 0.7, END_TOL = 40, TEXT_END = 0.97;
+    const LAZY = ['data-src', 'data-lazy-src', 'data-original'];
+    const seen = new WeakSet();
+    let sig = '', changedAt = start, okSince = 0, dirty = true, scanKey = '', scan = null, autoTried = false;
+    const abs = (u) => { try { return new URL(u, location.href).href; } catch (e) { return String(u || ''); } };
+    // Placeholder of a lazy reader that has not got its real picture yet
+    const lazyWaiting = (img) => {
+      const src = img.getAttribute('src') || '';
+      const shown = img.currentSrc || src;                      // with srcset the shown picture can differ from src
+      const tiny = /^data:/i.test(shown) && shown.length < 3000;
+      if (img.complete && img.naturalWidth >= 300 && !tiny) return false;
+      for (let k = 0; k < LAZY.length; k++) {
+        const v = img.getAttribute(LAZY[k]);
+        if (v && !/^data:/i.test(v) && abs(v) !== abs(src) && abs(v) !== img.currentSrc) return true;
+      }
+      return tiny && (LAZY.some((x) => img.hasAttribute(x)) || img.getAttribute('loading') === 'lazy');
+    };
+    const notLoaded = (img) => !img.complete || img.naturalWidth === 0 || lazyWaiting(img);
+    const common = (a, b) => { let x = a; while (x && !x.contains(b)) x = x.parentElement; return x || document.documentElement; };
+    // One pass over the pictures (only reads positions, writes nothing)
+    const analyse = () => {
+      const wMin = Math.min(innerWidth * 0.5, 560);
+      const cands = [];
+      const imgs = document.images;
+      for (let k = 0; k < imgs.length; k++) {
+        const img = imgs[k];
+        const r = img.getBoundingClientRect();
+        if (r.width <= wMin) continue;
+        const wait = notLoaded(img);
+        if (!wait && r.height <= 200) continue;                 // banner, separator, icon
+        cands.push({ img: img, r: r, wait: wait });
+      }
+      // Runs: next picture directly below (gap up to 150 px) or in the same container as the run so far (not the whole page)
+      const runs = [];
+      let cur = null;
+      cands.forEach((c) => {
+        if (cur) {
+          const p = cur.items[cur.items.length - 1];
+          const inBox = cur.box !== document.body && cur.box !== document.documentElement && cur.box.contains(c.img);
+          if (c.r.top - p.r.bottom <= 150 || inBox) {
+            cur.items.push(c); cur.box = common(cur.box, c.img);
+            return;
+          }
+        }
+        cur = { items: [c], box: c.img.parentElement || document.documentElement };
+        runs.push(cur);
+      });
+      let best = null;
+      runs.forEach((x) => { if (!best || x.items.length > best.items.length) best = x; });
+      return best;
+    };
+    const check = () => {
+      if (done || autoTried || my !== gen || document.hidden) { okSince = 0; return; }
       const de2 = document.documentElement;
-      return scrollY + innerHeight >= de2.scrollHeight * 0.9;
+      const sh = de2.scrollHeight;
+      const key = sh + '|' + Math.round(scrollY) + '|' + innerHeight + '|' + innerWidth + '|' + document.images.length;
+      if (dirty || key !== scanKey || !scan) {
+        dirty = false; scanKey = key;
+        const run = analyse();
+        const items = run ? run.items : [];
+        let pend = 0, seenN = 0;
+        items.forEach((m) => {
+          if (m.wait) pend++;
+          else if (m.r.bottom > 0 && m.r.top < innerHeight) seen.add(m.img);   // a placeholder does not count as seen
+          if (seen.has(m.img)) seenN++;
+        });
+        scan = { n: items.length, pend: pend, share: items.length ? seenN / items.length : 0,
+          last: items.length ? items[items.length - 1].r.bottom : 0 };
+      }
+      const now = Date.now();
+      const s = sh + '|' + scan.n;
+      if (s !== sig) { sig = s; changedAt = now; okSince = 0; }
+      const settled = scan.pend === 0 && now - changedAt >= SETTLE_MS;
+      const ok = settled && (scan.n >= 3
+        ? scan.last <= innerHeight + END_TOL && scan.share >= SEEN_SHARE
+        : scrollY + innerHeight >= sh * TEXT_END);
+      if (!ok) { okSince = 0; return; }
+      if (!okSince) okSince = now;
+      if (now - okSince >= DWELL_MS && now - start >= MIN_READ_MS) {
+        autoTried = true;                                       // after a network error: the message has "Retry"
+        save();
+      }
     };
     let tick = 0;
     const onScroll = () => {
       if (tick) return;
-      tick = setTimeout(() => { tick = 0; if (!done && Date.now() - start >= MIN_READ_MS && atEnd()) save(); }, 300);
+      tick = setTimeout(() => { tick = 0; check(); }, 250);
     };
+    const onChange = () => { dirty = true; };
     addEventListener('scroll', onScroll, { passive: true });
-    cleanup.push(() => removeEventListener('scroll', onScroll));
+    addEventListener('resize', onChange, { passive: true });
+    document.addEventListener('load', onChange, true);          // a picture finished loading
+    document.addEventListener('error', onChange, true);
+    const mo = new MutationObserver(onChange);                  // lazy readers add pictures later
+    mo.observe(document.body || document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['src', 'srcset', 'style', 'class'].concat(LAZY) });
+    const timer = setInterval(check, TICK_MS);                  // timers also run out without further scrolling
+    cleanup.push(() => {
+      removeEventListener('scroll', onScroll); removeEventListener('resize', onChange);
+      document.removeEventListener('load', onChange, true); document.removeEventListener('error', onChange, true);
+      mo.disconnect(); clearInterval(timer); clearTimeout(tick);
+    });
 
     // Tap on "next chapter": save first, then go on (the message with Undo appears on the next page)
     const onClick = (ev) => {

@@ -2,7 +2,7 @@
  *  - apiLesestandHosts: reading sites from your list, so the overlay only runs there
  *  - apiLesestand:      where you stopped for the series on this page ("Wo war ich?")
  *  - apiAutoGelesen:    saves a chapter automatically, but only if it is newer than the saved one
- *  - apiRueckgaengig:   undo for the automatic saving
+ *  - apiRueckgaengig:   undo for the automatic saving (v2.12: also "Neuestes Kapitel", hiatus and release info)
  *  - apiNeueSerie:      adds a series that is not in the list yet (only after you tap "Add")
  *  Kept in its own file so Code.gs stays unchanged. */
 
@@ -42,9 +42,10 @@ function apiAutoGelesen(key, url) {
   if (!t.it) return { ok: false, reason: 'unknown', title: t.r.title };
   const it = t.it, info = urlInfo_(url), n = t.r.ch;
   if (it.chapter != null && n <= it.chapter) return { ok: false, reason: 'older', title: it.title, chapter: it.chapter };
-  const prev = { chapter: it.chapter, lastRead: it.lastRead, url: it.url, overview: it.overview };
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
+    // v2.12: everything this save may change (also "Neuestes Kapitel", hiatus, release info), read from the row itself, for "Undo"
+    const prev = lesestandVorher_(it);
     const patch = { chapter: n, lastRead: heute_(), url: info.url };
     if (!it.status) patch.status = 'Lese ich gerade';
     if (!t.r.sameSite) patch.overview = uebersicht_(info.url) || info.url;   // read on another site: follow it
@@ -56,15 +57,33 @@ function apiAutoGelesen(key, url) {
   } finally { lock.releaseLock(); }
 }
 
+/** Fields an automatic save may change (directly or through schreiben_). readAt is left as it is. */
+const LESESTAND_UNDO = ['chapter', 'lastRead', 'url', 'overview', 'status', 'latest', 'latestSince', 'check', 'lockedCh',
+  'relDate', 'relCh', 'relDay', 'back', 'autoHiatus'];
+
+/** The row as it is now, in the form schreiben_ writes back unchanged (dates as yyyy-MM-dd, empty cells as null). */
+function lesestandVorher_(it) {
+  const sh = blatt_(); const r = zeile_(sh, it.id);
+  if (!r) return { chapter: it.chapter, lastRead: it.lastRead, url: it.url, overview: it.overview };
+  const row = sh.getRange(r, 1, 1, HEAD.length).getValues()[0];
+  const prev = {};
+  LESESTAND_UNDO.forEach(function (k) {
+    const v = row[C[k] - 1];
+    prev[k] = v instanceof Date ? tag_(v) : (v === '' || v == null ? null : v);
+  });
+  return prev;
+}
+
 function apiRueckgaengig(key, id, prev) {
   check_(key);
   const patch = {};
-  ['chapter', 'lastRead', 'url', 'overview'].forEach(function (k) {
+  // Older answers only had chapter, lastRead, url and overview: only the fields that are there are restored
+  LESESTAND_UNDO.forEach(function (k) {
     if (prev && k in prev) patch[k] = prev[k] == null ? '' : prev[k];
   });
   if (!Object.keys(patch).length) return null;
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
-  try { return schreiben_(String(id), patch); } finally { lock.releaseLock(); }
+  try { return schreiben_(String(id), patch, true); } finally { lock.releaseLock(); }
 }
 
 function apiNeueSerie(key, url) {

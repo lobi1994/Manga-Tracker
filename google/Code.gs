@@ -363,13 +363,14 @@ function zelle_(field, v) {
   return txt_(v);
 }
 
-function schreiben_(id, patch) {
+/** restore = true (undo of an automatic save): writes exactly the given values, without the side effects of a new chapter. */
+function schreiben_(id, patch, restore) {
   const sh = blatt_(); const r = zeile_(sh, id);
   if (!r) throw new Error('Serie nicht gefunden – lade die Liste neu.');
   // Schneller: die Zeile einmal lesen, dann alles schreiben, dann die Zeile einmal lesen (statt der ganzen Tabelle)
   const row = sh.getRange(r, 1, 1, HEAD.length).getValues()[0];
   patch = Object.assign({}, patch);
-  if (patch.url && !patch.overview && !row[C.overview - 1]) {
+  if (!restore && patch.url && !patch.overview && !row[C.overview - 1]) {
     const old = row[C.url - 1];
     const ov = (old && urlInfo_(old) && urlInfo_(old).ch == null) ? old : (uebersicht_(old) || uebersicht_(patch.url));
     if (ov) patch.overview = ov;
@@ -381,7 +382,7 @@ function schreiben_(id, patch) {
     if (mid) { const det = alById_(mid); if (!det) throw new Error('allink'); Object.assign(patch, alFelder_(det, 'bestätigt')); if (row[C.source - 1] === 'none') { patch.source = ''; patch.latestSince = ''; planeLauf_('neuesteErmitteln'); } }
     else Object.assign(patch, { dbId: '', dbTitle: '', alt: '', official: '', dbStatus: 'keine', dbUrl: '', wtFeed: '' });
   }
-  if ('chapter' in patch && patch.chapter != null && patch.chapter !== '') {
+  if (!restore && 'chapter' in patch && patch.chapter != null && patch.chapter !== '') {
     const newCh = Math.floor(Number(patch.chapter));
     const L = row[C.latest - 1] === '' ? null : Number(row[C.latest - 1]);
     const pc = parseCheck_(row[C.check - 1]);
@@ -395,7 +396,7 @@ function schreiben_(id, patch) {
     // Automatisch gesetzter Hiatus: wenn du weiterliest, zurück auf „Lese ich gerade“
     if (newCh > Number(row[C.chapter - 1] || 0) && row[C.status - 1] === 'Hiatus' && row[C.autoHiatus - 1] && !('status' in patch)) { patch.status = 'Lese ich gerade'; patch.autoHiatus = ''; }
   }
-  if ('status' in patch && patch.status !== 'Hiatus') patch.back = '';
+  if (!restore && 'status' in patch && patch.status !== 'Hiatus') patch.back = '';
   // Uhrzeit des Lesens (nur für die Sortierung): wenn sich Kapitel oder Lesedatum ändern
   if (patch.lastRead || ('chapter' in patch)) {
     const old = row.slice(C.chapter - 1, C.chapter + 2);
