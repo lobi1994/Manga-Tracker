@@ -153,7 +153,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .stat.backstat{border-color:var(--back);color:var(--back);font-weight:700}
 .stat.backstat[aria-pressed=true]{background:var(--back);color:#fff}
 .tierbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
-.tierbar .note{margin:0;flex:1 1 260px}
+.tierbar .note{margin:0;flex:1 1 140px}
 #pngImg{max-width:100%;max-height:60vh;border-radius:8px;border:1px solid var(--line);align-self:center;background:var(--tone)}
 a.btnlike{text-decoration:none;color:var(--ink);display:inline-block}
 a.btnlike.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
@@ -406,7 +406,7 @@ const I18N={
   igBtn:"📥 Instagram ideas",igTitle:"Shared from Instagram",igEmpty:"Nothing shared yet. In Instagram: Share → Manga merken.",igOpen:"Open ↗",igSt:{offen:"open",erledigt:"added",verworfen:"not interested"},
   recNone:"No recommendations yet. Tap “Update recommendations” – the first run takes a few minutes.",recEmpty:"Nothing matches these filters.",
   recFor:"Recommended for you",recSeq:"Sequels & side stories of your series",recWhy:t=>`because you liked ${t}`,recSeqWhy:(t,r)=>`${({SEQUEL:"sequel",PREQUEL:"prequel",SIDE_STORY:"side story",SPIN_OFF:"spin-off"})[r]||"related"} of ${t}`,
-  recAdd:"+ Add to list",recNo:"Not interested",recAdded:t=>`${t} added`,recCh:(n,a)=>`${a?"approx. ":""}${n} ch.`,recDesc:"Description",
+  recAdd:"+ Add to list",recNo:"Not interested",recAdded:t=>`${t} added`,recCh:(n,a)=>`${a?"approx. ":""}${n} ch.`,recDesc:"Description",recAvgLbl:n=>`${n}% on AniList`,recMore:"More",recLess:"Less",recErrTitle:"Couldn\u2019t load recommendations",
   fileDownload:"Download",xlsxBtn:"⤓ Excel",xlsxTitle:"Export as Excel",xlsxHint:"Sorted by rating, series without a rating by last read.",xlsxCols:["No.","Title","Rating","Chapters released so far"],xlsxFail:"The Excel file couldn't be created.",
   muCheck:"Check match",muQ:t=>`Is this the right series on AniList: <b>${t}</b>?`,muYes:"Yes, correct",muNo:"No, wrong",
   altLbl:"Also known as",officialLbl:"Officially on",muLink:"AniList ↗",
@@ -454,7 +454,7 @@ const I18N={
   igBtn:"📥 Instagram-Ideen",igTitle:"Von Instagram geteilt",igEmpty:"Noch nichts geteilt. In Instagram: Teilen → Manga merken.",igOpen:"Öffnen ↗",igSt:{offen:"offen",erledigt:"hinzugefügt",verworfen:"kein Interesse"},
   recNone:"Noch keine Empfehlungen. Tippe auf „Empfehlungen aktualisieren“ – der erste Lauf dauert ein paar Minuten.",recEmpty:"Nichts passt zu diesen Filtern.",
   recFor:"Für dich empfohlen",recSeq:"Fortsetzungen & Ableger deiner Serien",recWhy:t=>`weil dir ${t} gefallen hat`,recSeqWhy:(t,r)=>`${({SEQUEL:"Fortsetzung",PREQUEL:"Vorgeschichte",SIDE_STORY:"Nebengeschichte",SPIN_OFF:"Ableger"})[r]||"verwandt"} von ${t}`,
-  recAdd:"+ In meine Liste",recNo:"Kein Interesse",recAdded:t=>`${t} hinzugefügt`,recCh:(n,a)=>`${a?"ca. ":""}${n} Kap.`,recDesc:"Beschreibung",
+  recAdd:"+ In meine Liste",recNo:"Kein Interesse",recAdded:t=>`${t} hinzugefügt`,recCh:(n,a)=>`${a?"ca. ":""}${n} Kap.`,recDesc:"Beschreibung",recAvgLbl:n=>`${n} % bei AniList`,recMore:"Mehr",recLess:"Weniger",recErrTitle:"Empfehlungen konnten nicht geladen werden",
   fileDownload:"Herunterladen",xlsxBtn:"⤓ Excel",xlsxTitle:"Als Excel exportieren",xlsxHint:"Sortiert nach Bewertung, Serien ohne Bewertung nach zuletzt gelesen.",xlsxCols:["Nummer","Name","Bewertung","Bisher veröffentlichte Kapitel"],xlsxFail:"Die Excel-Datei konnte nicht erstellt werden.",
   muCheck:"Zuordnung prüfen",muQ:t=>`Ist das die richtige Serie bei AniList: <b>${t}</b>?`,muYes:"Ja, stimmt",muNo:"Nein, falsch",
   altLbl:"Auch bekannt als",officialLbl:"Offiziell bei",muLink:"AniList ↗",
@@ -1034,10 +1034,10 @@ $("pngDrive").onclick=async()=>{
 };
 
 /* ---------- recommendations ---------- */
-let recs=null, recUpd=null, recLoading=false;
+let recs=null, recUpd=null, recLoading=false, recErr=false;
 async function loadRecs(force){
   if(recLoading||(recs&&!force))return; recLoading=true; renderRecs();
-  try{const r=await run(force?"apiEmpfehlungenNeu":"apiEmpfehlungen"); recs=r.items||[]; recUpd=r.updated}catch(e){err(e); recs=recs||[]}
+  try{if(force&&window.mtFlushNo)await window.mtFlushNo(); const r=await run(force?"apiEmpfehlungenNeu":"apiEmpfehlungen"); recs=r.items||[]; recUpd=r.updated; recErr=false}catch(e){err(e); if(!recs)recErr=true}
   finally{recLoading=false; $("btnRecNew").disabled=false; renderRecs()}
 }
 function recCard(r){
@@ -1047,17 +1047,17 @@ function recCard(r){
   const c={title:r.title,image:r.cover,imageSrc:""};
   return `<div class="rec" data-rec="${esc(r.id)}">${cover(c,"cover","div")}<div class="rbody">
     <h3>${esc(r.title)}</h3>
-    <div class="meta">${r.avg?`<span>★ ${r.avg}%</span>`:""}${r.chapters?`<span>${t("recCh",r.chapters,r.approx)}</span>`:""}<span>${r.country==="KR"?"Manhwa":r.country==="CN"||r.country==="TW"?"Manhua":esc(r.country)}</span>${r.genres.length?`<span>${esc(r.genres.slice(0,3).join(", "))}</span>`:""}</div>
-    ${why?`<div class="note">${esc(why)}</div>`:""}
-    ${d?`<details><summary>${t("recDesc")}</summary><p class="desc" style="margin:6px 0 0">${esc(d)}</p></details>`:""}
-    <div class="meta">${r.url?`<a href="${escUrl(r.url)}" target="_blank" rel="noopener">AniList ↗</a>`:""}${offs.map(([s2,u])=>`<a href="${escUrl(u)}" target="_blank" rel="noopener">${esc(s2)} ↗</a>`).join("")}</div>
+    <div class="meta">${r.avg?`<span>${t("recAvgLbl",r.avg)}</span>`:""}${r.chapters?`<span>${t("recCh",r.chapters,r.approx)}</span>`:""}<span>${r.country==="KR"?"Manhwa":r.country==="CN"||r.country==="TW"?"Manhua":esc(r.country)}</span>${r.genres.length?`<span>${esc(r.genres.slice(0,3).join(", "))}</span>`:""}</div>
+    ${why?`<div class="why">${esc(why)}</div>`:""}
+    ${d?`<p class="desc rdesc">${esc(d)}</p>`:""}
+    <div class="srcs">${d?`<button type="button" class="more" data-ra="more" aria-expanded="false">${t("recMore")}</button>`:""}${r.url?`<a href="${escUrl(r.url)}" target="_blank" rel="noopener">AniList ↗</a>`:""}${offs.map(([s2,u])=>`<a href="${escUrl(u)}" target="_blank" rel="noopener">${esc(s2)} ↗</a>`).join("")}</div>
     <div class="acts"><button type="button" class="primary" data-ra="add">${t("recAdd")}</button><button type="button" data-ra="no">${t("recNo")}</button></div>
   </div></div>`;
 }
 function renderRecs(){
   if(!$("recList"))return;
   if(recLoading&&!recs){$("recList").innerHTML=`<div class="list"><div class="empty-state">${t("loading")}</div></div>`;$("recNote").textContent="";return}
-  if(!recs){$("recList").innerHTML="";return}
+  if(!recs){$("recList").innerHTML=recErr?`<div class="list"><div class="mtstate" role="alert"><div class="ic" aria-hidden="true">!</div><h3>${t("recErrTitle")}</h3><p>${t("errText")}</p><div class="btns"><button class="pri" data-act="recretry">${t("retry")}</button></div></div></div>`:"";return}
   const fmt=x=>new Date(x).toLocaleString(prefs.lang==="de"?"de-DE":"en-GB",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
   $("recNote").textContent=recLoading?t("recUpdating"):(recUpd?t("recUpdated",fmt(recUpd)):"");
   if(!recs.length){$("recList").innerHTML=`<div class="list"><div class="empty-state">${t("recNone")}</div></div>`;return}
@@ -1113,7 +1113,10 @@ $("btnIgList").onclick=async()=>{
 ["recMin","recCountry","recSort","recGenre"].forEach(k=>$(k).addEventListener("change",()=>{prefs[k]=$(k).value;savePrefs();renderRecs()}));
 $("btnRecNew").onclick=()=>{$("btnRecNew").disabled=true;toast(t("recUpdating"));loadRecs(true)};
 $("recList").addEventListener("click",async e=>{
+  const rt=e.target.closest('[data-act="recretry"]'); if(rt){recErr=false;loadRecs(false);return}
   const b=e.target.closest("button[data-ra]"); if(!b)return; const card=b.closest("[data-rec]"); const id=card.dataset.rec; const r=(recs||[]).find(x=>x.id===id);
+  if(b.dataset.ra==="more"){const o=card.classList.toggle("open"); b.textContent=t(o?"recLess":"recMore"); b.setAttribute("aria-expanded",o); return}
+  if(b.dataset.ra==="no"&&window.mtRecNo){window.mtRecNo(id,r);return}   // v2.15: mit Rückgängig
   b.disabled=true;
   try{
     if(b.dataset.ra==="add"){put(await run("apiEmpfehlungAufnehmen",id));toast(t("recAdded",r?r.title:""))}
@@ -2824,5 +2827,105 @@ html[data-page="tier"] .iconrow .icbtn[data-lbl="checkBtn"],html[data-page="rec"
 })();
 </script>
 <!--/v215-->
+<!--v215r-->
+<style id="v215rcss">
+/* ===== v2.15: Empfehlungen – ein Filter-Knopf, größere Karten und Aktionen ===== */
+#pageRec .filters{display:flex;flex-wrap:nowrap;gap:8px;align-items:center}
+#pageRec .filters #recSort{flex:1;min-width:0;min-height:48px}
+#mtRecFilterBtn{flex:none;min-height:48px;padding:0 16px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-weight:700;display:flex;align-items:center;gap:8px}
+#mtRecFilterBtn .n{min-width:22px;height:22px;border-radius:11px;background:var(--accent);color:var(--accent-ink);font-size:13px;display:none;align-items:center;justify-content:center;padding:0 6px}
+#mtRecFilterBtn.on .n{display:inline-flex}
+#mtRecSum{display:none;margin:-8px 0 0;font-size:14px;color:var(--muted);align-items:center;gap:8px;flex-wrap:wrap}
+#mtRecSum.on{display:flex}
+#mtRecSum button{min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--tone);color:var(--ink);font:inherit;font-size:13px}
+.recbar{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.recbar #recNote{flex:1 1 180px;margin:0;font-size:14px;text-wrap:pretty}
+#btnRecNew{flex:none;min-height:44px;background:transparent;border-color:var(--line);color:var(--muted)}
+#btnIgList{display:none}
+.sec-h{text-wrap:balance}
+.sec-h .note{font-size:14px}
+.rec{grid-template-columns:96px 1fr}
+.rec .cover{width:96px;height:136px}
+.rec h3{font-size:16px;text-wrap:balance}
+.rec .meta,.rec .meta span{font-size:14px}
+.rec .why{background:var(--tone);border-radius:10px;padding:8px 10px;font-size:14px;color:var(--ink)}
+.rec .rdesc{margin:0;font-size:14px;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.rec.open .rdesc{display:block;-webkit-line-clamp:unset}
+.rec .more{align-self:flex-start;min-height:44px;min-width:44px;background:none;border:0;color:var(--accent);padding:0 4px;font:inherit;font-size:14px;font-weight:700}
+.rec .srcs{display:flex;flex-wrap:wrap;gap:0 4px}
+.rec .srcs a{display:inline-flex;align-items:center;min-height:44px;padding:0 8px;color:var(--muted);font-size:14px;text-decoration:underline}
+.rec .acts{gap:12px;margin-top:0}
+.rec .acts button{min-height:44px;font-size:14px;padding:0 14px}
+.rec .acts button.primary{flex:1 1 auto}
+.rec .acts button[data-ra="no"]{background:transparent;border-color:var(--line);color:var(--muted)}
+</style>
+<script>
+/* v2.15: Empfehlungen – Filter als Blatt, Aktualisieren ruhiger, Instagram-Ideen in den Einstellungen, "Kein Interesse" mit Rückgängig */
+(function () {
+  var UI = window.mtUI; if (!UI) return;
+  var $q = UI.$q, $a = UI.$a, S = UI.S;
+  function X(d, e) { return prefs.lang === 'de' ? d : e; }
+  var page = $q('#pageRec'), filters = $q('.filters', page); if (!filters) return;
+
+  /* ---- Filter-Blatt: Kapitel, Land, Genre; Sortierung bleibt sichtbar ---- */
+  var lbl = $q('label[for="recMin"]', filters); if (lbl) lbl.hidden = true;
+  var fil = UI.makeSheet('mtRecFil', 'Filter', 'Filter');
+  UI.h4(fil.body, 'Kapitel', 'Chapters'); fil.body.appendChild($q('#recMin'));
+  UI.h4(fil.body, 'Land', 'Country'); fil.body.appendChild($q('#recCountry'));
+  UI.h4(fil.body, 'Genre', 'Genre'); fil.body.appendChild($q('#recGenre'));
+  var fb = document.createElement('button'); fb.type = 'button'; fb.id = 'mtRecFilterBtn';
+  fb.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>' + S('Filter', 'Filter') + '<span class="n"></span>';
+  filters.insertBefore(fb, $q('#recSort')); fb.onclick = function () { fil.open(fb); };
+  var sum = document.createElement('div'); sum.id = 'mtRecSum'; filters.parentNode.insertBefore(sum, filters.nextSibling);
+  function resetFilters() {
+    [['recMin', '0'], ['recCountry', 'all'], ['recGenre', 'all']].forEach(function (p) { var el = $q('#' + p[0]); if (el && el.value !== p[1]) { el.value = p[1]; el.dispatchEvent(new Event('change', { bubbles: true })); } });
+  }
+  function refreshSum() {
+    var parts = [], min = Number(prefs.recMin || 0), c = prefs.recCountry || 'all', g = prefs.recGenre || 'all';
+    if (min > 0) parts.push(X('mind. ', 'min. ') + min + ' ' + X('Kap.', 'ch.'));
+    if (c !== 'all') parts.push(c === 'KR' ? 'Manhwa' : 'Manhua');
+    if (g !== 'all') { var o = $q('#recGenre'); parts.push(o && o.selectedIndex >= 0 ? o.options[o.selectedIndex].textContent : g); }
+    fb.classList.toggle('on', parts.length > 0); $q('.n', fb).textContent = parts.length; sum.classList.toggle('on', parts.length > 0);
+    sum.innerHTML = '<span></span><button type="button">' + S('Zurücksetzen', 'Reset') + '</button>';
+    $q('span', sum).textContent = parts.join(' · '); $q('button', sum).onclick = resetFilters;
+  }
+  var baseR = renderRecs; renderRecs = function () { baseR.apply(this, arguments); refreshSum(); };
+  var baseL = applyLang; applyLang = function () { baseL.apply(this, arguments); refreshSum(); };
+
+  /* ---- Aktualisieren ruhig neben dem Stand ---- */
+  var bar = document.createElement('div'); bar.className = 'recbar';
+  var note = $q('#recNote'); note.parentNode.insertBefore(bar, note); bar.appendChild(note); bar.appendChild($q('#btnRecNew'));
+
+  /* ---- Instagram-Ideen: Zeile in den Einstellungen ---- */
+  var ex = $a('#mtSet .mtrow').filter(function (r) { return /Excel/.test(r.textContent); })[0];
+  if (ex) {
+    var tmp = document.createElement('div');
+    var row = UI.mkRow(tmp, 'Instagram-Ideen', 'Instagram ideas', null, function () {
+      $q('#mtSet .mtclose').click(); $q('#pageSeg [data-page="rec"]').click();
+      setTimeout(function () { var box = $q('#igList'); if (box && box.hidden) $q('#btnIgList').click(); }, 250);
+    });
+    ex.parentNode.insertBefore(row, ex.nextSibling);
+  }
+
+  /* ---- "Kein Interesse": erst nach 6,5 s endgültig, bis dahin Rückgängig ----
+     (es gibt keine Rückgängig-Funktion im Skript, deshalb wird der Aufruf verzögert) */
+  var pend = null;
+  function commit() {
+    if (!pend) return Promise.resolve(); var p = pend; pend = null; clearTimeout(p.t);
+    return run('apiEmpfehlungNein', p.id).catch(function () { /* kommt beim nächsten Laden wieder */ });
+  }
+  window.mtFlushNo = commit;
+  window.mtRecNo = function (id, r) {
+    commit(); recs = recs.filter(function (x) { return x.id !== id; }); renderRecs();
+    if (!r) return; pend = { id: id, r: r, t: setTimeout(commit, 6500) };
+    UI.undoBar(X('Kein Interesse: ', 'Not interested: ') + r.title, function () { if (pend && pend.id === id) { clearTimeout(pend.t); recs.push(pend.r); pend = null; renderRecs(); } });
+  };
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') commit(); });
+  window.addEventListener('pagehide', commit);
+  refreshSum();
+})();
+</script>
+<!--/v215r-->
+
 </body>
 </html>
