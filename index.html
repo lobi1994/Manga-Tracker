@@ -8,7 +8,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Manga Tracker</title>
 <style>html:not(.mt-ready) body{visibility:hidden}</style>
-<script>window.mtMarks=[];window.mtMark=function(n){window.mtMarks.push([n,performance.now()])};(function(){var V="v2.15.0",d=document.documentElement,hold=false,want=false,touched=false;
+<script>window.mtMarks=[];window.mtMark=function(n){window.mtMarks.push([n,performance.now()])};(function(){var V="v2.15.1",d=document.documentElement,hold=false,want=false,touched=false;
 var D=window.mtDiag={vis0:document.visibilityState,visAt:null,chkAt:null,gap:0,gapAt:0},hb=performance.now();
 var iv=setInterval(function(){var n=performance.now();if(n>20000){clearInterval(iv);return}if(n-hb>D.gap){D.gap=n-hb;D.gapAt=hb}hb=n},100);
 document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible"&&D.visAt==null)D.visAt=performance.now()});
@@ -1636,7 +1636,7 @@ window.mtMark&&mtMark(4);
 window.mtMark&&mtMark(5);
 /* App version shown at the bottom of every page; raise it with every update and note it in the change log */
 (function(){
-  var APP_VERSION = 'v2.15.0', APP_DATE = '20.11.2026';
+  var APP_VERSION = 'v2.15.1', APP_DATE = '20.11.2026';
   var f = document.createElement('div');
   f.id = 'appVersion';
   f.textContent = 'Manga Tracker ' + APP_VERSION + ' \u00b7 ' + APP_DATE;
@@ -2535,10 +2535,17 @@ window.mtMark&&mtMark(16);
     nohit: ['Not found on AniList \u2013 title as written in the post.', 'Bei AniList nicht gefunden \u2013 Titel wie im Beitrag.'],
     perPost: function (n) { return de() ? 'laut Beitrag: Kap. ' + n : 'per post: ch. ' + n; },
     inListN: function (n) { return de() ? 'Schon in deiner Liste (' + n + '):' : 'Already in your list (' + n + '):'; },
-    st: { offen: ['open', 'offen'], erledigt: ['done', 'erledigt'], verworfen: ['not interested', 'kein Interesse'] }
+    st: { offen: ['open', 'offen'], erledigt: ['done', 'erledigt'], verworfen: ['not interested', 'kein Interesse'] },
+    close: ['Close', 'Schlie\u00dfen'], foldAll: ['Collapse all', 'Alle einklappen'], unfoldAll: ['Expand all', 'Alle aufklappen'],
+    fold: ['Collapse post', 'Beitrag einklappen'], unfold: ['Expand post', 'Beitrag aufklappen'],
+    titlesN: function (n) { return de() ? n + (n === 1 ? ' Titel' : ' Titel') : n + (n === 1 ? ' title' : ' titles'); },
+    toDecide: function (n) { return de() ? n + ' offen' : n + ' to decide'; }
   };
   function tx(k) { var v = TX[k]; return typeof v === 'function' ? v : v[de() ? 1 : 0]; }
-  var box = $('igList'), list = [], shown = false, busy = {}, found = {}, timer = null, polls = 0;
+  var box = $('igList'), list = [], shown = false, busy = {}, found = {}, timer = null, polls = 0, folded = {};
+  // v2.15.1: Beitraege mit vielen Titeln starten eingeklappt (nur Datum, Link, Anzahl); sonst aufgeklappt
+  function toDecideN(x) { return (x.cand || []).filter(function (c) { return !c.state && !(c.inList); }).length; }
+  function isFolded(x) { return x.url in folded ? folded[x.url] : toDecideN(x) > 5; }
 
   var css = document.createElement('style');
   css.textContent = '.igp{border-bottom:1px solid var(--line);padding:12px}.igp:last-child{border-bottom:0}'
@@ -2546,7 +2553,11 @@ window.mtMark&&mtMark(16);
     + '.igc{display:flex;gap:10px;align-items:flex-start;margin-top:10px}.igc img,.igc .noimg{width:52px;height:74px;object-fit:cover;border-radius:6px;flex:none;background:var(--line)}'
     + '.igc .tx{flex:1;min-width:0}.igc b{display:block;overflow-wrap:anywhere}.igc .bt{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}'
     + '.igc.off{opacity:.55}.igs{display:flex;gap:6px;margin-top:12px}.igs input{flex:1;min-width:0}'
-    + '.igwarn{color:var(--back,#c2611e);font-size:12.5px}';
+    + '.igwarn{color:var(--back,#c2611e);font-size:12.5px}'
+    + '.igtop{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.igtop .sec-h{margin:14px 0 8px}.igtop .sp{flex:1}'
+    + '.igtop button,.igh button,.igh a{min-height:44px;display:inline-flex;align-items:center}.igh{font-size:14px}'
+    + '.igc .bt button,.igs button,.igs input{min-height:44px}'
+    + '.igfold{min-width:44px;justify-content:center;padding:0}.igsum{margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}';
   document.head.appendChild(css);
 
   function fmtD(d) { var m = String(d || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? (de() ? m[3] + '.' + m[2] + '.' + m[1] : m[3] + '/' + m[2] + '/' + m[1]) : esc(d || ''); }
@@ -2570,9 +2581,16 @@ window.mtMark&&mtMark(16);
   }
   function post(x, xi) {
     var st = TX.st[x.status] ? TX.st[x.status][de() ? 1 : 0] : x.status;
-    var h = '<div class="igp"><div class="igh"><b>' + fmtD(x.date) + '</b><span class="note">' + esc(st) + '</span><span class="sp"></span>'
+    var fo = isFolded(x), nTit = (x.cand || []).length, nOpen = toDecideN(x);
+    var h = '<div class="igp"><div class="igh"><button type="button" class="igfold" data-ig="fold" data-x="' + xi + '" aria-expanded="' + (!fo) + '" aria-label="' + esc(tx(fo ? 'unfold' : 'fold')) + '" title="' + esc(tx(fo ? 'unfold' : 'fold')) + '">' + (fo ? '\u25b8' : '\u25be') + '</button>'
+      + '<b>' + fmtD(x.date) + '</b><span class="note">' + esc(st) + '</span>'
+      + (fo && nTit ? '<span class="note">' + esc(tx('titlesN')(nTit)) + (nOpen ? ' \u00b7 ' + esc(tx('toDecide')(nOpen)) : '') + '</span>' : '') + '<span class="sp"></span>'
       + '<a href="' + escUrl(x.url) + '" target="_blank" rel="noopener">' + tx('open') + '</a>'
-      + '<button type="button" data-ig="read" data-x="' + xi + '"' + (busy[x.url] ? ' disabled' : '') + '>' + (x.read ? tx('reread') : tx('readNow')) + '</button></div>';
+      + (fo ? '' : '<button type="button" data-ig="read" data-x="' + xi + '"' + (busy[x.url] ? ' disabled' : '') + '>' + (x.read ? tx('reread') : tx('readNow')) + '</button>') + '</div>';
+    if (fo) {
+      var sum = x.title || (x.cand || []).slice(0, 3).map(function (c) { return c.title; }).join(' \u00b7 ');
+      return h + (sum ? '<div class="note igsum">' + esc(sum) + '</div>' : '') + '</div>';
+    }
     if (busy[x.url]) h += '<div class="note" style="margin-top:8px">' + tx('reading') + '</div>';
     else if (!x.read && x.status === 'offen') h += '<div class="note" style="margin-top:8px">' + tx('pending') + '</div>';
     else if (/^Fehler/.test(x.read || '')) h += '<div class="igwarn" style="margin-top:8px">' + esc(x.read) + '</div><div class="note">' + tx('none') + '</div>';
@@ -2591,7 +2609,10 @@ window.mtMark&&mtMark(16);
     if (!shown) return;
     var keep = {};
     Array.prototype.forEach.call(box.querySelectorAll('input[data-q]'), function (i) { if (i.value) keep[i.dataset.q] = i.value; });
-    box.innerHTML = '<h2 class="sec-h">' + tx('title') + ' <span class="note">' + list.length + '</span></h2>'
+    var allF = list.length && list.every(isFolded);
+    box.innerHTML = '<div class="igtop"><h2 class="sec-h">' + tx('title') + ' <span class="note">' + list.length + '</span></h2><span class="sp"></span>'
+      + (list.length ? '<button type="button" data-ig="foldall">' + tx(allF ? 'unfoldAll' : 'foldAll') + '</button>' : '')
+      + '<button type="button" data-ig="close">' + tx('close') + '</button></div>'
       + (list.length ? '<div class="list">' + list.map(post).join('') + '</div>' : '<div class="list"><div class="empty-state">' + tx('empty') + '</div></div>');
     Object.keys(keep).forEach(function (k) { var i = box.querySelector('input[data-q="' + k + '"]'); if (i) i.value = keep[k]; });
   }
@@ -2614,8 +2635,11 @@ window.mtMark&&mtMark(16);
   function setEntry(e) { if (!e) return; var i = list.findIndex(function (x) { return x.url === e.url; }); if (i >= 0) list[i] = e; }
   box.addEventListener('click', function (ev) {
     var b = ev.target.closest('button[data-ig]'); if (!b) return;
+    if (b.dataset.ig === 'close') { shown = false; box.hidden = true; clearTimeout(timer); return; }
+    if (b.dataset.ig === 'foldall') { var af = list.length && list.every(isFolded); list.forEach(function (p) { folded[p.url] = !af; }); render(); return; }
     var x = list[+b.dataset.x]; if (!x) return;
     var what = b.dataset.ig;
+    if (what === 'fold') { folded[x.url] = !isFolded(x); render(); return; }
     if (what === 'read') {
       busy[x.url] = 1; render();
       run('apiInboxLesen', x.url).then(function (e) { delete busy[x.url]; delete found[x.url]; setEntry(e); render(); })
