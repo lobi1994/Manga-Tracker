@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Manga Tracker – Lesestand
 // @namespace    https://github.com/lobi1994/Manga-Tracker
-// @version      1.15.0
+// @version      1.16.0
 // @description  Zeigt auf der Kapitelübersicht, wo du aufgehört hast, speichert gelesene Kapitel automatisch und hilft, Manga-Ideen von Instagram in deinen Manga Tracker zu übernehmen.
 // @author       lobi1994
 // @match        *://*/*
@@ -20,9 +20,9 @@
  *
  * What it does, only on reading sites that are already in your list:
  *  - Chapter overview of a series: shows "read up to X", marks that chapter and offers "Continue".
- *  - Chapter page, newer than your saved chapter: saves it automatically once you are really at the end
- *    of the chapter (all pictures loaded, last picture seen, most pictures scrolled through), or when you tap
- *    the next chapter. A message with "Undo" appears for 15 seconds.
+ *  - Chapter page, newer than your saved chapter: saves it automatically about a second after you are really
+ *    at the end of the chapter (all pictures loaded, last picture seen, most pictures scrolled through), or when
+ *    you tap the next chapter. A message with "Undo" appears for 15 seconds.
  *  - Chapter page, older or same chapter: nothing is changed.
  *  - Series not in your list: asks once whether to add it.
  *  - Re-read ("Erneut lesen", 1.15.0): while you read a series a second time, everything above uses the
@@ -307,8 +307,10 @@
     const save = () => {
       if (done || my !== gen) return Promise.resolve(null);
       done = true;
+      // 1.16.0: say it right away; the answer of your Google web app can take a second or two
+      pill('<b>' + esc(st.title) + '</b> · ' + rrTag(st) + T('chapter ', 'Kapitel ') + esc(ch) + T(' is being saved …', ' wird gespeichert …'), [], 0);
       return call('apiAutoGelesen', [url]).then((res) => {
-        if (res && res.ok) offerUndo(res);
+        if (res && res.ok) offerUndo(res); else hide();
         return res;
       }, (e) => {
         done = false;
@@ -318,14 +320,14 @@
       });
     };
 
-    // End of the chapter (1.14.0): rather save too late than too early. Saved only when, for 2 s in a row,
-    //  - the page has settled: height and number of chapter pictures unchanged for 3 s, no chapter picture still loading,
+    // End of the chapter (1.14.0, faster since 1.16.0): rather save too late than too early. Saved only when, for 0.7 s in a row,
+    //  - the page has settled: height and number of chapter pictures unchanged for 1.2 s, no chapter picture still loading,
     //  - the bottom of the last chapter picture is on screen (or above it),
     //  - at least 70 % of the chapter pictures were on screen at some point,
     //  - and you have been on the page for at least 15 s.
     // Chapter pictures = the longest run of large pictures, one below the other (comments, ads, tips below are left out).
     // Pages with fewer than 3 such pictures (text, canvas): 97 % of the page scrolled.
-    const SETTLE_MS = 3000, DWELL_MS = 2000, TICK_MS = 500, SEEN_SHARE = 0.7, END_TOL = 40, TEXT_END = 0.97;
+    const SETTLE_MS = 1200, DWELL_MS = 700, TICK_MS = 200, SEEN_SHARE = 0.7, END_TOL = 40, TEXT_END = 0.97;   // 1.16.0: were 3000 / 2000 / 500 ms
     const LAZY = ['data-src', 'data-lazy-src', 'data-original'];
     const seen = new WeakSet();
     let sig = '', changedAt = start, okSince = 0, dirty = true, scanKey = '', scan = null, autoTried = false;
@@ -411,7 +413,7 @@
     let tick = 0;
     const onScroll = () => {
       if (tick) return;
-      tick = setTimeout(() => { tick = 0; check(); }, 250);
+      tick = setTimeout(() => { tick = 0; check(); }, 100);
     };
     const onChange = () => { dirty = true; };
     addEventListener('scroll', onScroll, { passive: true });
