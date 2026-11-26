@@ -15,8 +15,8 @@
 // ==/UserScript==
 
 /*
- * Setup (once): open https://lobi1994.github.io/Manga-Tracker/ in Safari (not the home screen app),
- * with your setup link if it asks for one. The script takes your app link and key from there.
+ * Setup (once): open your own setup link in Safari (not the home screen app),
+ * The script takes your app link and key from that page.
  *
  * What it does, only on reading sites that are already in your list:
  *  - Chapter overview of a series: shows "read up to X", marks that chapter and offers "Continue".

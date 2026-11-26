@@ -47,7 +47,7 @@ This also creates your **own random key**.
 ## 5. Get the app onto your iPhone / iPad
 
 1. In the sheet: **Manga Tracker → App-Link anzeigen** (show app link). The first time, the sheet asks for the **web app link**: in Apps Script go to **Deploy → Manage deployments**, copy the web app URL (it ends in `/exec`) and paste it.
-2. Copy the **setup link** (it starts with `https://lobi1994.github.io/Manga-Tracker/#setup=`) and get it onto your iPhone/iPad, for example via Notes, AirDrop or an email to yourself.
+2. Copy the **setup link** (a long link that contains `#setup=`) and get it onto your iPhone/iPad, for example via Notes, AirDrop or an email to yourself.
 3. Open the link on your iPhone/iPad in **Safari**. Your (still empty) list appears.
 4. **Share → Add to Home Screen**. You now have Manga Tracker as an app with its own icon.
 
@@ -106,7 +106,7 @@ Setup (about 5 minutes):
 1. Get the free app **Userscripts** from the App Store and open it. Pick a folder for the scripts (e.g. "On My iPhone").
 2. **Settings → Apps → Safari → Extensions → Userscripts**: turn it on and set *Other Websites* to **Allow**.
 3. In Safari, open [the script](https://raw.githubusercontent.com/lobi1994/Manga-Tracker/main/userscript/manga-tracker.user.js). Tap the puzzle icon (or **ᴀA**) in the address bar → **Userscripts** → **Install**.
-4. In Safari (not the home screen app), open [lobi1994.github.io/Manga-Tracker](https://lobi1994.github.io/Manga-Tracker/) once. After a few seconds **"Reading overlay connected ✓"** appears. If the page asks for the setup link, paste yours from **App-Link anzeigen**.
+4. In Safari (not the home screen app), open your own setup link (from **App-Link anzeigen**) once. After a few seconds **"Reading overlay connected ✓"** appears. If the page asks for the setup link, paste yours from **App-Link anzeigen**.
 
 Requires script version 2.5 or newer (see "7. Updates").
 

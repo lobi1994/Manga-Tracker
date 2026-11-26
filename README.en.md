@@ -6,7 +6,6 @@ A small app to keep track of manga, manhwa and manhua: reading progress, ratings
 
 ![Manga Tracker with sample data](docs/screenshot.png)
 
-- **App:** https://lobi1994.github.io/Manga-Tracker/
 - **Set up your own tracker:** [SETUP.md](SETUP.md)
 
 ## How it works

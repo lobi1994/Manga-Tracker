@@ -45,7 +45,7 @@ Dabei wird auch dein **eigener, zufälliger Schlüssel** angelegt.
 ## 5. App aufs iPhone / iPad holen
 
 1. In der Tabelle: **Manga Tracker → App-Link anzeigen**. Beim ersten Mal fragt die Tabelle nach dem **Web-App-Link**: in Apps Script unter **Bereitstellen → Bereitstellungen verwalten** bei der Web-App die URL kopieren (endet auf `/exec`) und einfügen.
-2. Den **Einrichtungs-Link** (beginnt mit `https://lobi1994.github.io/Manga-Tracker/#setup=`) kopieren und auf dein iPhone/iPad bringen – zum Beispiel per Notizen, AirDrop oder Mail an dich selbst.
+2. Den **Einrichtungs-Link** (ein langer Link, der `#setup=` enthält) kopieren und auf dein iPhone/iPad bringen – zum Beispiel per Notizen, AirDrop oder Mail an dich selbst.
 3. Den Link auf dem iPhone/iPad in **Safari** öffnen. Deine (noch leere) Liste erscheint.
 4. **Teilen → Zum Home-Bildschirm**. Jetzt hast du den Manga Tracker als App mit eigenem Symbol.
 
@@ -104,7 +104,7 @@ Einrichten (ca. 5 Minuten):
 1. Die kostenlose App **Userscripts** aus dem App Store laden und öffnen. Einen Ordner für die Skripte auswählen (z. B. „Auf meinem iPhone“).
 2. **Einstellungen → Apps → Safari → Erweiterungen → Userscripts** einschalten und bei *Andere Websites* **Erlauben** wählen.
 3. In Safari [das Skript](https://raw.githubusercontent.com/lobi1994/Manga-Tracker/main/userscript/manga-tracker.user.js) öffnen. Oben in der Adressleiste auf das Puzzle-Symbol (oder **ᴀA**) → **Userscripts** → **Installieren**.
-4. In Safari (nicht in der Home-Bildschirm-App) einmal [lobi1994.github.io/Manga-Tracker](https://lobi1994.github.io/Manga-Tracker/) öffnen. Nach ein paar Sekunden erscheint **„Lesestand-Overlay verbunden ✓“**. Falls die Seite nach dem Einrichtungs-Link fragt: deinen Link aus **App-Link anzeigen** einfügen.
+4. In Safari (nicht in der Home-Bildschirm-App) einmal deinen eigenen Einrichtungs-Link (aus **App-Link anzeigen**) öffnen. Nach ein paar Sekunden erscheint **„Lesestand-Overlay verbunden ✓“**. Falls die Seite nach dem Einrichtungs-Link fragt: deinen Link aus **App-Link anzeigen** einfügen.
 
 Voraussetzung: die Skript-Version 2.5 oder neuer (siehe „7. Updates“).
 

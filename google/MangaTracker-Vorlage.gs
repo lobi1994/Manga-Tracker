@@ -1524,7 +1524,7 @@ function apiEmpfehlungAufnehmen(key, id) {
 /**
  * Manga Tracker – Schnittstelle für die App auf GitHub Pages + Einrichten-Menü
  *
- * Die App (https://lobi1994.github.io/Manga-Tracker/) schickt jede Anfrage als
+ * Die App (die Oberfläche auf GitHub Pages, siehe APP_PAGE) schickt jede Anfrage als
  * POST {fn, key, args} hierher. Erlaubt sind nur Funktionen, deren Name mit
  * „api“ beginnt; jede davon prüft den Schlüssel selbst.
  */
